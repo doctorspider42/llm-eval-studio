@@ -1,6 +1,7 @@
 @page "/batches/{Id:guid}"
 @implements IDisposable
 @inject EvalService Svc
+@inject BatchSummaryService SummarySvc
 @inject EvalEvents Events
 @inject Toaster Toasts
 @inject CurrentUser Me
@@ -31,6 +32,14 @@ else
             </div>
         </div>
         <div class="actions">
+            @if (s.IsRunning)
+            {
+                <button class="btn btn-danger btn-sm" @onclick="() => StopBatch(false)">@L["iteration.stopGeneration"]</button>
+            }
+            @if (s.IsJudging || s.AutoJudge)
+            {
+                <button class="btn btn-danger btn-sm" @onclick="() => StopBatch(true)">@L["iteration.stopJudges"]</button>
+            }
             <button class="btn btn-ghost btn-danger btn-icon" title="@L["batch.detail.delete"]" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
             <div class="dropdown">
                 <button class="btn" @onclick="() => _reportOpen = !_reportOpen"><Icon Name="file" /> @L["batch.report.button"] <Icon Name="chevron-down" Size="13" /></button>
@@ -41,15 +50,31 @@ else
                         <div class="small faint" style="margin-bottom:8px">@L["batch.report.intro"]</div>
                         <div class="stack" style="gap:8px">
                             <label class="switch small"><input type="checkbox" @bind="_repReveal" /><span class="track"></span> @L["batch.report.reveal"]</label>
-                            <label class="switch small"><input type="checkbox" @bind="_repComments" /><span class="track"></span> @L["batch.report.comments"]</label>
+                            <label class="small">@L["batch.report.descriptions"]</label>
+                            <select class="select" @bind="_repCommentMode" aria-label="@L["batch.report.descriptions"]">
+                                <option value="details">@L["batch.report.comments"]</option>
+                                <option value="summaries">@L["batch.report.summaries"]</option>
+                                <option value="none">@L["batch.report.noComments"]</option>
+                            </select>
+                            @if (_repCommentMode == "summaries")
+                            {
+                                <select class="select" @bind="_repSummaryId" aria-label="@L["batch.summary.judge"]">
+                                    <option value="">@L["batch.summary.latest"]</option>
+                                    @foreach (var summary in ReadySummaries) { <option value="@summary.Id">@summary.JudgeName</option> }
+                                </select>
+                            }
                             <label class="switch small"><input type="checkbox" @bind="_repAnswers" /><span class="track"></span> @L["batch.report.answers"]</label>
                         </div>
+                        @if (_repCommentMode != "summaries" || SummaryForReport is not null)
+                        {
                         <a class="btn btn-primary btn-sm" style="width:100%;margin-top:12px" href="@ReportUrl(print: true)" target="_blank" @onclick="() => _reportOpen = false">
                             <Icon Name="file" Size="14" /> @L["batch.report.pdf"]
                         </a>
                         <a class="btn btn-ghost btn-sm" style="width:100%;margin-top:4px" href="@ReportUrl(print: false)" target="_blank" @onclick="() => _reportOpen = false">
                             <Icon Name="external" Size="14" /> @L["batch.report.preview"]
                         </a>
+                        }
+                        else { <div class="hint" style="margin-top:12px">@L["batch.summary.reportNeeded"]</div> }
                     </div>
                 }
             </div>
@@ -125,6 +150,50 @@ else
                 @(s.JudgeTotal == 0 ? (s.AutoJudge ? L["batch.detail.judgeWaiting"] : L["batch.detail.judgeNone"]) : s.IsJudging ? L["batch.detail.judging"] : L["batch.detail.judgeDone"])
             </div>
         </div>
+    </div>
+
+    <div class="card stack" style="margin-bottom:16px;gap:12px">
+        <div class="card-title"><Icon Name="sparkles" /> @L["batch.summary.title"]</div>
+        <div class="small muted">@L["batch.summary.intro"]</div>
+        <div class="row wrap">
+            <select class="select" style="width:260px;max-width:100%" @bind="_summaryJudgeId" aria-label="@L["batch.summary.judge"]">
+                <option value="">@L["batch.summary.chooseJudge"]</option>
+                @foreach (var judge in _judges) { <option value="@judge.Id">@judge.DisplayName</option> }
+            </select>
+            <button class="btn" disabled="@(_summaryJudgeId is null || s.IsRunning || s.IsJudging || _summarySubmitting || SummaryBusy)" @onclick="GenerateSummary">
+                <Icon Name="sparkles" Size="14" /> @L["batch.summary.generate"]
+            </button>
+            @if (s.IsRunning || s.IsJudging) { <span class="small faint">@L["batch.summary.wait"]</span> }
+            @if (_judges.Count == 0) { <span class="small faint">@L["batch.summary.noJudges"]</span> }
+        </div>
+        @foreach (var summary in _summaries.Where(r => r.Language == L.Lang))
+        {
+            <details class="card" style="padding:12px" open="@(summary.Status != ResultStatus.Completed || summary.IsStale)">
+                <summary style="cursor:pointer">
+                    <b>@summary.JudgeName</b> · @L.Date(summary.CreatedAt)
+                    @if (summary.Status is ResultStatus.Pending or ResultStatus.Running) { <span class="muted"> · @L["batch.summary.progress", summary.CompletedCases, summary.TotalCases]</span> }
+                    @if (summary.Status == ResultStatus.Failed) { <span class="badge badge-failed">@L["batch.summary.failed"]</span> }
+                    @if (summary.IsStale) { <span class="badge">@L["batch.summary.stale"]</span> }
+                </summary>
+                @if (summary.Error is not null) { <p class="small muted">@summary.Error</p> }
+                @if (summary.IsStale) { <p class="small muted">@L["batch.summary.staleHint"]</p> }
+                @if (summary.Status == ResultStatus.Completed)
+                {
+                    <p style="white-space:pre-wrap">@summary.Overview</p>
+                    @foreach (var item in summary.Cases)
+                    {
+                        <div class="divider"></div>
+                        <h3>@(_b.Rows.FirstOrDefault(r => r.TestCaseId == item.TestCaseId)?.Title)</h3>
+                        <div class="small faint">@L["batch.summary.repetitions", item.Repetitions]</div>
+                        <p style="white-space:pre-wrap">@item.Text</p>
+                        @foreach (var model in item.Models)
+                        {
+                            <p style="white-space:pre-wrap"><b>@(NameOf(model.Alias) ?? L["candidate", model.Alias]):</b> @model.Text</p>
+                        }
+                    }
+                }
+            </details>
+        }
     </div>
 
     @* ── per-model standings ── *@
@@ -249,10 +318,18 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    private async Task StopBatch(bool judges) => await Toasts.Try(() => Svc.CancelBatchAsync(Id, judges));
+
     private BatchDto? _b;
     private bool _notFound, _reveal, _judgeOpen, _onlyUnjudged = true, _confirmDelete;
     private List<ModelDto> _judges = [];
     private readonly HashSet<Guid> _judgeSel = [];
+    private List<AiBatchSummaryDto> _summaries = [];
+    private Guid? _summaryJudgeId, _repSummaryId;
+    private bool _summarySubmitting;
+    private IEnumerable<AiBatchSummaryDto> ReadySummaries => _summaries.Where(r => r.Language == L.Lang && r.Status == ResultStatus.Completed && !r.IsStale);
+    private AiBatchSummaryDto? SummaryForReport => ReadySummaries.FirstOrDefault(r => _repSummaryId is null || r.Id == _repSummaryId);
+    private bool SummaryBusy => _summaries.Any(r => r.JudgeModelId == _summaryJudgeId && r.Language == L.Lang && r.Status is ResultStatus.Pending or ResultStatus.Running);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -265,7 +342,14 @@ else
 
     private async Task Load()
     {
-        try { _b = await Svc.GetBatchAsync(Id, _reveal, Me.User?.Id); _notFound = false; }
+        try
+        {
+            _b = await Svc.GetBatchAsync(Id, _reveal, Me.User?.Id);
+            _summaries = await SummarySvc.GetAsync(Id);
+            _judges = await Svc.GetJudgeModelsAsync();
+            _summaryJudgeId ??= _judges.FirstOrDefault()?.Id;
+            _notFound = false;
+        }
         catch (EvalException) { _notFound = true; }
     }
 
@@ -273,11 +357,22 @@ else
     private string? NameOf(string alias) => _b?.Models.FirstOrDefault(m => m.Alias == alias)?.Model?.DisplayName;
 
 
-    private bool _reportOpen, _repReveal = true, _repComments = true, _repAnswers;
+    private bool _reportOpen, _repReveal = true, _repAnswers;
+    private string _repCommentMode = "details";
 
     private string ReportUrl(bool print) =>
         $"reports/batches/{Id}?lang={L.Lang}&reveal={_repReveal.ToString().ToLowerInvariant()}" +
-        $"&comments={_repComments.ToString().ToLowerInvariant()}&answers={_repAnswers.ToString().ToLowerInvariant()}&print={print.ToString().ToLowerInvariant()}";
+        $"&comments={(_repCommentMode == "details").ToString().ToLowerInvariant()}&summaries={(_repCommentMode == "summaries").ToString().ToLowerInvariant()}" +
+        $"&summaryId={SummaryForReport?.Id}&answers={_repAnswers.ToString().ToLowerInvariant()}&print={print.ToString().ToLowerInvariant()}";
+
+    private async Task GenerateSummary()
+    {
+        if (_summaryJudgeId is not { } judge) return;
+        _summarySubmitting = true;
+        await Toasts.Try(async () => { await SummarySvc.GenerateAsync(Id, new(judge, L.Lang, Regenerate: true)); }, L["batch.summary.queued"]);
+        _summarySubmitting = false;
+        await Load();
+    }
 
     private async Task ToggleReveal()
     {

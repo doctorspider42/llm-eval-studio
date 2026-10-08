@@ -48,5 +48,9 @@
   "iteration.judgeStartedMany": "{0} sędziów zabiera się do roboty…",
   "iteration.batchDone": "Cała seria oceniona – wracam do podsumowania 🎉",
   "iteration.retried": "{0} leci jeszcze raz",
-  "iteration.deleted": "Iteracja usunięta"
+  "iteration.deleted": "Iteracja usunięta",
+  "iteration.showCost": "Pokaż koszt",
+  "iteration.cost": "Koszt zgłoszony przez dostawcę (USD)",
+  "iteration.stopGeneration": "Zatrzymaj generowanie",
+  "iteration.stopJudges": "Zatrzymaj sędziów"
 }

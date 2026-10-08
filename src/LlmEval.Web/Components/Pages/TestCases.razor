@@ -1,5 +1,6 @@
 @page "/test-cases"
 @implements IDisposable
+@inject Toaster Toasts
 @inject EvalService Svc
 @inject EvalEvents Events
 @inject NavigationManager Nav
@@ -23,11 +24,12 @@
         <Icon Name="search" />
         <input class="input" placeholder="@L["testcases.search"]" @bind="_search" @bind:event="oninput" @bind:after="Reload" />
     </div>
-    <button class="chip @(_tag is null ? "on" : "")" @onclick="() => SetTag(null)">@L["testcases.allTags"]</button>
-    @foreach (var t in _tags)
-    {
-        <button class="chip @(_tag == t ? "on" : "")" @onclick="() => SetTag(t)"><Icon Name="tag" Size="11" /> @t</button>
-    }
+    <select class="select" style="width:240px;max-width:100%" aria-label="@L["testcases.category"]" @bind="_categoryFilter" @bind:after="Reload">
+        <option value="">@L["testcases.allCategories"]</option>
+        <option value="uncategorized">@L["testcases.uncategorized"]</option>
+        @foreach (var category in _categories) { <option value="@("category:" + category)">@category</option> }
+    </select>
+    <TagFilter Tags="_tags" Value="@_tag" ValueChanged="SetTag" />
 </div>
 
 @if (_items is null)
@@ -58,6 +60,7 @@ else
                 </div>
                 <div class="muted small clamp-3">@t.PromptPreview</div>
                 <div class="row wrap" style="gap:6px;margin-top:auto">
+                    @if (t.Category is not null) { <span class="category-badge"><Icon Name="layers" Size="12" /> @t.Category</span> }
                     @foreach (var tag in t.Tags) { <span class="tag">@tag</span> }
                 </div>
                 <div class="row small faint">
@@ -76,9 +79,21 @@ else
         <span><b>@_selected.Count</b> <span class="muted">@L["testcases.selected"]</span></span>
         <button class="btn btn-sm btn-ghost" @onclick="SelectAllVisible">@L["testcases.selectAllVisible", _items?.Count ?? 0]</button>
         <button class="btn btn-sm btn-ghost" @onclick="() => _selected.Clear()">@L["testcases.deselect"]</button>
+        <button class="btn" @onclick="() => { _bulkCategory = null; _categoryOpen = true; }">@L["testcases.setCategory"]</button>
         <button class="btn btn-primary" @onclick="() => _batchOpen = true"><Icon Name="list-checks" /> @L["testcases.runBatch"]</button>
     </div>
 }
+
+<Modal @bind-Open="_categoryOpen" Title="@L["testcases.setCategory"]" Icon="layers">
+    <ChildContent>
+        <p class="muted">@L["testcases.categorySelected", _selected.Count]</p>
+        <CategoryInput @bind-Value="_bulkCategory" Categories="_categories" />
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="() => _categoryOpen = false">@L["common.cancel"]</button>
+        <button class="btn btn-primary" disabled="@_categorizing" @onclick="Categorize">@L["common.save"]</button>
+    </Footer>
+</Modal>
 
 <TestCaseEditor @bind-Open="_editorOpen" OnSaved='t => Nav.NavigateTo($"test-cases/{t.Id}")' />
 <BatchDialog @bind-Open="_batchOpen" Preselected="_selected" OnStarted='b => Nav.NavigateTo($"batches/{b.Summary.Id}")' />
@@ -87,14 +102,17 @@ else
 @code {
     private List<TestCaseSummaryDto>? _items;
     private List<string> _tags = [];
-    private string? _search, _tag;
+    private List<string> _categories = [];
+    private string? _search, _tag, _categoryFilter, _bulkCategory;
+    private bool _categoryOpen, _categorizing;
     private bool _editorOpen, _batchOpen, _importOpen;
 
-    /// <summary>Show just the imported cases, already selected, so "Odpal serię" is one click away.</summary>
-    private async Task OnImported((List<Guid> Ids, string? Tag) r)
+    /// <summary>Show just the imported category, with the new cases already selected, so "Odpal serię" is one click away.</summary>
+    private async Task OnImported((List<Guid> Ids, string? Category) r)
     {
         _search = null;
-        _tag = r.Tag;
+        _tag = null;
+        _categoryFilter = r.Category is null ? "uncategorized" : "category:" + r.Category;
         await Reload();
         _selected.Clear();
         foreach (var id in r.Ids) _selected.Add(id);
@@ -119,8 +137,22 @@ else
 
     private async Task Reload()
     {
-        _items = await Svc.GetTestCasesAsync(_search, _tag);
+        _items = await Svc.GetTestCasesAsync(_search, _tag, category: _categoryFilter?.StartsWith("category:") == true ? _categoryFilter[9..] : null, uncategorized: _categoryFilter == "uncategorized");
+        _categories = await Svc.GetCategoriesAsync();
         _tags = await Svc.GetTagsAsync();
+    }
+
+    private async Task Categorize()
+    {
+        _categorizing = true;
+        var ok = await Toasts.Try(async () => { await Svc.SetTestCaseCategoryAsync(new(_selected.ToList(), _bulkCategory)); }, L["common.saved"]);
+        _categorizing = false;
+        if (!ok) return;
+        _categoryOpen = false;
+        var category = EvalService.NormalizeCategory(_bulkCategory);
+        _categoryFilter = category is null ? "uncategorized" : "category:" + category;
+        _selected.Clear();
+        await Reload();
     }
 
     private async Task SetTag(string? tag)

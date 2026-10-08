@@ -15,6 +15,7 @@
     {
         ResultStatus.Pending => "pending",
         ResultStatus.Running => "running",
+        ResultStatus.Cancelled => "cancelled",
         ResultStatus.Failed => "fail",
         _ when Avg is { } a => $"h{(int)Math.Clamp(Math.Round(a), 1, 5)}",
         _ => ""
@@ -22,6 +23,7 @@
 
     private string Text => Status switch
     {
+        ResultStatus.Cancelled => "■",
         ResultStatus.Failed => "✕",
         ResultStatus.Pending or ResultStatus.Running => "…",
         _ => Avg is null ? "—" : L.Stars(Avg)
@@ -31,6 +33,7 @@
     {
         ResultStatus.Pending => L["batch.chip.pending"],
         ResultStatus.Running => L["batch.chip.running"],
+        ResultStatus.Cancelled => L["status.cancelled"],
         ResultStatus.Failed => L["batch.chip.failed"],
         _ => Avg is null ? L["batch.chip.noRatings"] : $"{L.Stars(Avg)}★" + (RatingCount is { } n ? $" ({L.Plural("plural.ratings", n)})" : "")
     };

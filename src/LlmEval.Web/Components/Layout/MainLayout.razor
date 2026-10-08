@@ -211,7 +211,6 @@
     {
         if (lang == L.Lang) return;
         await L.SetAsync(lang);
-        Nav.NavigateTo(Nav.Uri, forceLoad: true); // simplest way to re-render every component in the new language
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);

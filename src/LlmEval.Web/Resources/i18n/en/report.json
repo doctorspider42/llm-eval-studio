@@ -48,5 +48,10 @@
   "report.method": "Methodology",
   "report.method.text": "Every test case was run on all models, in a random order in each iteration. Raters – humans and AI judges – saw the answers only as “Model 1, 2…”, never the model names. AI judges received the prompt, the expected answer (if any) and the anonymous answers. A “win” is the highest average in an iteration (ties count for everyone on top). Spread σ is the standard deviation of a model’s per-answer average ratings.",
   "report.method.judges": "AI judges: {0}.",
-  "report.footer": "LLM Eval Studio · {0}"
+  "report.footer": "LLM Eval Studio · {0}",
+  "report.toolbar.summaries": "AI summaries",
+  "report.summary.title": "AI judge conclusions for the entire series",
+  "report.summary.by": "Judge: {0} · generated {1}",
+  "report.summary.repetitions": "Conclusions across all repetitions ({0})",
+  "report.summary.method": "AI summaries cover all repetitions of each task, including failed trials, and combine conclusions for the entire series. They synthesize answers and existing ratings separately; they do not change ratings or report statistics."
 }

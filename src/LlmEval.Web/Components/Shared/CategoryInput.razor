@@ -1,0 +1,16 @@
+<div class="field">
+    <label for="@_id">@L["testcases.category"]</label>
+    <input id="@_id" class="input" list="@(_id + "-options")" maxlength="120" value="@Value"
+           @onchange="e => ValueChanged.InvokeAsync(e.Value?.ToString())" placeholder="@L["testcases.categoryPh"]" />
+    <datalist id="@(_id + "-options")">
+        @foreach (var category in Categories) { <option value="@category"></option> }
+    </datalist>
+    <div class="hint">@L["testcases.categoryHint"]</div>
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public IEnumerable<string> Categories { get; set; } = [];
+    private readonly string _id = "category-" + Guid.NewGuid().ToString("N");
+}

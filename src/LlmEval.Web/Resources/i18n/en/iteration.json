@@ -48,5 +48,9 @@
   "iteration.judgeStartedMany": "{0} judges are getting to work…",
   "iteration.batchDone": "Whole series rated – heading back to the summary 🎉",
   "iteration.retried": "{0} is going for another round",
-  "iteration.deleted": "Iteration deleted"
+  "iteration.deleted": "Iteration deleted",
+  "iteration.showCost": "Show cost",
+  "iteration.cost": "Provider-reported cost (USD)",
+  "iteration.stopGeneration": "Stop generation",
+  "iteration.stopJudges": "Stop judges"
 }

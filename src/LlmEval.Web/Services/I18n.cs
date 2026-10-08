@@ -109,12 +109,13 @@ public static class I18n
     public static string Num(string lang, double v, string format = "N0") => v.ToString(format, CultureOf(lang));
 }
 
-/// <summary>Per-circuit translator. Language lives in localStorage; switching reloads the page so everything re-renders.</summary>
+/// <summary>Per-circuit translator. Language lives in localStorage; switching refreshes the routed components.</summary>
 public class Localizer(IJSRuntime js)
 {
     private const string StorageKey = "llmeval.lang";
 
     public string Lang { get; private set; } = I18n.English;
+    public event Action? Changed;
     public CultureInfo Culture => I18n.CultureOf(Lang);
 
     public string this[string key] => I18n.Get(Lang, key);
@@ -138,7 +139,9 @@ public class Localizer(IJSRuntime js)
     {
         if (!I18n.Languages.Contains(lang)) return;
         await js.InvokeVoidAsync("localStorage.setItem", StorageKey, lang);
+        await js.InvokeVoidAsync("document.documentElement.setAttribute", "lang", lang);
         Lang = lang;
+        Changed?.Invoke();
     }
 
     /// <summary>User-facing text for any exception; EvalException carries a translation key.</summary>

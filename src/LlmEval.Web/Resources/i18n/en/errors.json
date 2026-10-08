@@ -35,5 +35,9 @@
   "errors.import.tooManyRows": "Too many rows ({0}) – the limit is {1}",
   "errors.import.promptTemplateRequired": "Set a prompt template, e.g. {{question}}",
   "errors.import.noSplits": "The dataset has no available splits",
-  "errors.import.huggingFace": "Hugging Face: {0}"
+  "errors.import.huggingFace": "Hugging Face: {0}",
+  "errors.categoryTooLong": "Category must be at most 120 characters long.",
+  "errors.summaryLanguage": "Unsupported summary language.",
+  "errors.summaryWait": "Wait for every answer and judge run to finish.",
+  "errors.summaryNeeded": "Generate a current AI summary in the report language first."
 }

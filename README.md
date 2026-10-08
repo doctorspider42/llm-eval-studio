@@ -25,10 +25,14 @@
 |---|---|
 | 🙈 **Blind by default** | Answers show up as *Model 1, 2, 3…* in random order. Click **Reveal** only after you've rated them. |
 | ⚖️ **AI judge** | Mark any model as a judge. It rates every answer blind (1–5 ★ plus a reason) under its own bot account, next to human ratings. |
+| ✦ **AI series summaries** | A judge summarizes every task across all repetitions, then the entire series. Export these concise descriptions instead of individual comments; saved summaries detect changed results or ratings. |
 | 🎯 **Expected answers** | Add a reference answer to a test case. The models never see it; the judge compares the answers against it. |
 | 🔁 **Series** | *N test cases × M models × K repetitions* in one click, with live progress, a per-model ranking, a spread score (σ) and a heat-map matrix. |
+| 💸 **Response costs** | Toggle **Show cost** in an iteration to see provider-reported USD costs for answers and judges (OpenRouter and Claude Code CLI). Missing costs stay unknown; free responses show zero. |
+| 🛑 **Stop runs** | Cancel one answer or judge, all generation or judging in an iteration, or a whole series. Queued work is skipped; active requests are cancelled and CLI process trees are stopped. Cancelled answers can be retried. Stopping a series also disables future auto-judging. |
 | 🧩 **6 providers** | OpenAI API · OpenRouter API · Anthropic API · Ollama · **Claude Code CLI** · **Codex CLI** (use your subscription, no API key needed). |
 | 📥 **Import** | JSON / JSONL, or rows straight from Hugging Face with `{{column}}` templates. Presets for IFEval, GSM8K and TruthfulQA. |
+| 🗂️ **Categories & tags** | Group test cases under one category, assign a whole import to it, or move selected cases together. Filter by category and search for tags from a compact dropdown. |
 | 🤖 **Agent-ready API** | Everything in the UI is also available over REST, with OpenAPI + Scalar docs and a ready-made [Claude skill](.claude/skills/llm-eval/SKILL.md). |
 | 📄 **PDF reports** | One click turns a series into a print-ready report (verdict, ranking, chart, per-case heat map, judge comments). Save it as PDF straight from the browser. |
 | 🌍 **PL / EN** | Full Polish and English UI, switchable in the top bar. Translations are plain JSON files, so adding a language is easy. |

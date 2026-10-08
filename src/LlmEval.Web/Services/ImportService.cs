@@ -18,10 +18,10 @@ public record ImportMapping(string Prompt, string? Title = null, string? Data = 
 /// <param name="Mapping">null = guessed from column names.</param>
 /// <param name="DryRun">true = only return columns, the guessed mapping and a preview.</param>
 public record ImportRequest(string? Text = null, List<JsonObject>? Rows = null, ImportMapping? Mapping = null,
-    List<string>? Tags = null, Guid? UserId = null, bool DryRun = false, int? Limit = null);
+    List<string>? Tags = null, Guid? UserId = null, bool DryRun = false, int? Limit = null, string? Category = null);
 
 public record HfImportRequest(string Dataset, string? Config = null, string? Split = null, int Offset = 0, int Length = 50,
-    ImportMapping? Mapping = null, List<string>? Tags = null, Guid? UserId = null, bool DryRun = false);
+    ImportMapping? Mapping = null, List<string>? Tags = null, Guid? UserId = null, bool DryRun = false, string? Category = null);
 
 public record ImportPreview(int RowCount, List<string> Columns, ImportMapping Mapping, List<UpsertTestCaseRequest> Sample,
     int Created, List<string> Errors, List<Guid>? CreatedIds = null);
@@ -154,8 +154,9 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
     };
 
     public static (List<UpsertTestCaseRequest> Items, List<string> Errors) Map(IReadOnlyList<JsonObject> rows, ImportMapping mapping,
-        IEnumerable<string>? extraTags, Guid? userId)
+        IEnumerable<string>? extraTags, Guid? userId, string? category = null)
     {
+        category = EvalService.NormalizeCategory(category);
         var items = new List<UpsertTestCaseRequest>();
         var errors = new List<string>();
         var tags = (extraTags ?? []).Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
@@ -181,7 +182,7 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
                 SystemPrompt: NullIfEmpty(Render(mapping.SystemPrompt, row)),
                 Tags: tags.Concat(rowTags).Distinct().ToList(),
                 UserId: userId,
-                ExpectedAnswer: NullIfEmpty(Render(mapping.ExpectedAnswer, row))));
+                ExpectedAnswer: NullIfEmpty(Render(mapping.ExpectedAnswer, row)), Category: category));
         }
         return (items, errors);
     }
@@ -194,18 +195,18 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
     {
         var rows = req.Rows ?? ParseRows(req.Text ?? "");
         if (req.Limit is > 0) rows = rows.Take(req.Limit.Value).ToList();
-        return await RunAsync(rows, req.Mapping, req.Tags, req.UserId, req.DryRun, ct);
+        return await RunAsync(rows, req.Mapping, req.Tags, req.UserId, req.DryRun, ct, req.Category);
     }
 
     public async Task<ImportPreview> ImportFromHfAsync(HfImportRequest req, CancellationToken ct = default)
     {
         var rows = await HfRowsAsync(req.Dataset, req.Config, req.Split, req.Offset, req.Length, ct);
         var tags = req.Tags ?? [req.Dataset.Split('/').Last().ToLowerInvariant()];
-        return await RunAsync(rows, req.Mapping, tags, req.UserId, req.DryRun, ct);
+        return await RunAsync(rows, req.Mapping, tags, req.UserId, req.DryRun, ct, req.Category);
     }
 
     private async Task<ImportPreview> RunAsync(List<JsonObject> rows, ImportMapping? mapping, List<string>? tags, Guid? userId, bool dryRun,
-        CancellationToken ct)
+        CancellationToken ct, string? category)
     {
         if (rows.Count == 0) throw EvalException.Invalid("errors.import.noRows");
         if (rows.Count > MaxRows) throw EvalException.Invalid("errors.import.tooManyRows", rows.Count, MaxRows);
@@ -214,7 +215,7 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
         mapping ??= GuessMapping(columns);
         if (string.IsNullOrWhiteSpace(mapping.Prompt)) throw EvalException.Invalid("errors.import.promptTemplateRequired");
 
-        var (items, errors) = Map(rows, mapping, tags, userId);
+        var (items, errors) = Map(rows, mapping, tags, userId, category);
         List<Guid> ids = [];
         if (!dryRun && items.Count > 0) ids = await CreateBulkAsync(items, ct);
         return new ImportPreview(rows.Count, columns, mapping, items.Take(dryRun ? 5 : 3).ToList(), ids.Count, errors, ids);
@@ -234,6 +235,7 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
                 Data = r.Data,
                 SystemPrompt = r.SystemPrompt,
                 ExpectedAnswer = r.ExpectedAnswer,
+                Category = r.Category,
                 Tags = (r.Tags ?? []).Select(t => t.ToLowerInvariant()).Distinct().ToList(),
                 CreatedById = userId,
             });

@@ -52,5 +52,7 @@
   "plural.chars.many": "{0:N0} znaków",
   "plural.errors.one": "{0} błąd",
   "plural.errors.few": "{0} błędy",
-  "plural.errors.many": "{0} błędów"
+  "plural.errors.many": "{0} błędów",
+  "common.stop": "Zatrzymaj",
+  "status.cancelled": "Zatrzymano"
 }

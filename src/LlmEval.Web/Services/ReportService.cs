@@ -12,16 +12,25 @@ public record ReportCase(Guid TestCaseId, string Title, string? SystemPrompt, st
     List<ReportAnswer> Answers);
 
 public record BatchReport(BatchDto Batch, List<ReportCase> Cases, List<string> JudgeNames, int HumanRatings, int AiRatings,
-    DateTimeOffset GeneratedAt);
+    DateTimeOffset GeneratedAt, AiBatchSummaryDto? AiSummary = null);
 
-public record ReportOptions(string Lang, bool Reveal = true, bool Comments = true, bool Answers = false, bool AutoPrint = false);
+public record ReportOptions(string Lang, bool Reveal = true, bool Comments = true, bool Answers = false, bool AutoPrint = false,
+    bool Summaries = false, Guid? SummaryId = null);
 
 /// <summary>Collects everything a series report needs in one pass (the per-model numbers come from <see cref="EvalService.GetBatchAsync"/>).</summary>
-public class ReportService(IDbContextFactory<AppDbContext> dbFactory, EvalService svc)
+public class ReportService(IDbContextFactory<AppDbContext> dbFactory, EvalService svc, BatchSummaryService summaries)
 {
-    public async Task<BatchReport> BuildBatchReportAsync(Guid batchId, bool reveal, CancellationToken ct = default)
+    public async Task<BatchReport> BuildBatchReportAsync(Guid batchId, bool reveal, CancellationToken ct = default,
+        bool useSummaries = false, string language = "en", Guid? summaryId = null)
     {
         var batch = await svc.GetBatchAsync(batchId, reveal, null, ct);
+        AiBatchSummaryDto? summary = null;
+        if (useSummaries)
+        {
+            summary = (await summaries.GetAsync(batchId, ct)).FirstOrDefault(r => r.Status == ResultStatus.Completed
+                && !r.IsStale && r.Language == language && (summaryId == null || r.Id == summaryId));
+            if (summary is null) throw EvalException.Invalid("errors.summaryNeeded");
+        }
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var modelIds = await db.Batches.Where(b => b.Id == batchId).Select(b => b.ModelIds).FirstAsync(ct);
@@ -68,6 +77,6 @@ public class ReportService(IDbContextFactory<AppDbContext> dbFactory, EvalServic
         return new BatchReport(batch, cases, judges,
             ratings.Count(r => r.User.JudgeModelId is null),
             ratings.Count(r => r.User.JudgeModelId is not null),
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow, summary);
     }
 }

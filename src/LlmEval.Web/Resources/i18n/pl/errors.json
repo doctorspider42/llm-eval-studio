@@ -35,5 +35,9 @@
   "errors.import.tooManyRows": "Za dużo wierszy ({0}) – limit to {1}",
   "errors.import.promptTemplateRequired": "Ustaw szablon promptu, np. {{question}}",
   "errors.import.noSplits": "Dataset nie ma dostępnych splitów",
-  "errors.import.huggingFace": "Hugging Face: {0}"
+  "errors.import.huggingFace": "Hugging Face: {0}",
+  "errors.categoryTooLong": "Kategoria może mieć maksymalnie 120 znaków.",
+  "errors.summaryLanguage": "Nieobsługiwany język podsumowania.",
+  "errors.summaryWait": "Poczekaj na zakończenie wszystkich odpowiedzi i ocen sędziów.",
+  "errors.summaryNeeded": "Wygeneruj aktualne podsumowanie AI w języku raportu."
 }

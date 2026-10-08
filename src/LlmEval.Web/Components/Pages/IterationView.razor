@@ -19,7 +19,7 @@ else if (_it is null)
 }
 else
 {
-    var done = _it.Results.Count(r => r.Status is ResultStatus.Completed or ResultStatus.Failed);
+    var done = _it.Results.Count(r => r.Status is ResultStatus.Completed or ResultStatus.Failed or ResultStatus.Cancelled);
     var myRated = _it.Results.Count(r => Mine(r) is not null);
     var rateable = _it.Results.Count(r => r.Status == ResultStatus.Completed);
 
@@ -70,6 +70,15 @@ else
             </div>
         </div>
         <div class="actions">
+            <label class="switch small"><input type="checkbox" @bind="_showCost" /><span class="track"></span> @L["iteration.showCost"]</label>
+            @if (!_it.IsComplete)
+            {
+                <button class="btn btn-danger btn-sm" @onclick="() => StopIteration(false)">@L["iteration.stopGeneration"]</button>
+            }
+            @if (_it.JudgeRuns.Any(j => j.Status is ResultStatus.Pending or ResultStatus.Running))
+            {
+                <button class="btn btn-danger btn-sm" @onclick="() => StopIteration(true)">@L["iteration.stopJudges"]</button>
+            }
             <div class="seg">
                 <button class="@(_cols ? "on" : "")" @onclick="() => _cols = true" title="@L["iteration.sideBySide"]"><Icon Name="columns" Size="14" /></button>
                 <button class="@(!_cols ? "on" : "")" @onclick="() => _cols = false" title="@L["iteration.stacked"]"><Icon Name="rows" Size="14" /></button>
@@ -139,8 +148,17 @@ else
                     {
                         case ResultStatus.Pending: <span class="faint">@L["iteration.judgeQueued"]</span> break;
                         case ResultStatus.Running: <span class="typing"><i></i><i></i><i></i></span> break;
+                        case ResultStatus.Cancelled: <span class="faint">@L["status.cancelled"]</span> break;
                         case ResultStatus.Completed: <span style="color:var(--ok)">✓ @L.Ms(j.LatencyMs)@(j.Error is null ? "" : " ⚠")</span> break;
                         default: <span style="color:var(--err)">✕ @L["iteration.judgeFailed"]</span> break;
+                    }
+                    @if (_showCost && j.CostUsd is { } judgeCost)
+                    {
+                        <span class="small" title="@L["iteration.cost"]">@judgeCost.ToString("0.########", L.Culture) USD</span>
+                    }
+                    @if (j.Status is ResultStatus.Pending or ResultStatus.Running)
+                    {
+                        <button class="btn btn-ghost btn-sm btn-danger" @onclick="() => StopJudge(j.Id)">@L["common.stop"]</button>
                     }
                 </span>
             }
@@ -203,6 +221,9 @@ else
                             <div class="row muted" style="margin-bottom:10px"><span class="typing"><i></i><i></i><i></i></span> @(r.Status == ResultStatus.Pending ? L["iteration.pending"] : L["iteration.thinking"])</div>
                             <div class="skeleton" style="width:92%"></div><div class="skeleton" style="width:78%"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:40%"></div>
                             break;
+                        case ResultStatus.Cancelled:
+                            <div class="muted">@L["status.cancelled"]</div>
+                            break;
                         case ResultStatus.Failed:
                             <div class="error-box">@r.Error</div>
                             break;
@@ -219,6 +240,10 @@ else
                     {
                         <span title="@L["iteration.tokens"]"><Icon Name="hash" Size="12" /> @(r.InputTokens is { } tin ? L.Num(tin) : "?") → @(r.OutputTokens is { } tout ? L.Num(tout) : "?")</span>
                     }
+                    @if (_showCost && r.CostUsd is { } cost)
+                    {
+                        <span title="@L["iteration.cost"]">@cost.ToString("0.########", L.Culture) USD</span>
+                    }
                     @if (r.Output is not null)
                     {
                         <span>@L.Plural("plural.chars", r.Output.Length)</span>
@@ -229,7 +254,11 @@ else
                         <button class="btn btn-ghost btn-sm btn-icon" title="@L["iteration.expand"]" @onclick="() => ToggleExpand(r.Id)"><Icon Name="maximize" Size="13" /></button>
                         <button class="btn btn-ghost btn-sm btn-icon" title="@L["common.copy"]" @onclick="() => Copy(r.Output)"><Icon Name="copy" Size="13" /></button>
                     }
-                    @if (r.Status is ResultStatus.Completed or ResultStatus.Failed)
+                    @if (r.Status is ResultStatus.Pending or ResultStatus.Running)
+                    {
+                        <button class="btn btn-ghost btn-sm btn-danger" @onclick="() => StopResult(r.Id)">@L["common.stop"]</button>
+                    }
+                    @if (r.Status is ResultStatus.Completed or ResultStatus.Failed or ResultStatus.Cancelled)
                     {
                         <button class="btn btn-ghost btn-sm btn-icon" title="@L["iteration.retryTitle"]" @onclick="() => Retry(r)"><Icon Name="refresh" Size="13" /></button>
                     }
@@ -304,7 +333,11 @@ else
     private Guid? _draftsFor;
     private List<ModelDto> _judges = [];
     private readonly HashSet<Guid> _judgeSel = [];
-    private bool _judgeOpen;
+    private bool _judgeOpen, _showCost;
+
+    private async Task StopIteration(bool judges) => await Toasts.Try(() => Svc.CancelIterationAsync(Id, judges));
+    private async Task StopResult(Guid id) => await Toasts.Try(() => Svc.CancelResultAsync(id));
+    private async Task StopJudge(Guid id) => await Toasts.Try(() => Svc.CancelJudgeAsync(id));
 
     protected override async Task OnParametersSetAsync()
     {

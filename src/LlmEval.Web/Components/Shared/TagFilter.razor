@@ -1,0 +1,38 @@
+<details class="tag-filter">
+    <summary class="chip @(Value is null ? "" : "on")"><Icon Name="tag" Size="13" /> @(Value ?? L["testcases.tagFilter"])</summary>
+    <div class="tag-filter-menu stack">
+        <input class="input" aria-label="@L["testcases.searchTags"]" placeholder="@L["testcases.searchTags"]" @bind="_query" @bind:event="oninput" />
+        @if (Value is not null)
+        {
+            <button type="button" class="btn btn-sm btn-ghost" @onclick="() => Choose(null)">@L["testcases.clearTag"] · @Value</button>
+        }
+        @if (string.IsNullOrWhiteSpace(_query))
+        {
+            <div class="small faint">@L["testcases.tagSearchHint"]</div>
+        }
+        else
+        {
+            <div class="row wrap" style="gap:6px">
+                @foreach (var tag in Matches.Take(20))
+                {
+                    <button type="button" class="chip @(Value == tag ? "on" : "")" @onclick="() => Choose(tag)">@tag</button>
+                }
+            </div>
+            @if (!Matches.Any()) { <div class="small faint">@L["testcases.noTags"]</div> }
+            @if (Matches.Skip(20).Any()) { <div class="small faint">@L["testcases.moreTags"]</div> }
+        }
+    </div>
+</details>
+
+@code {
+    [Parameter] public IEnumerable<string> Tags { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    private string? _query;
+    private IEnumerable<string> Matches => Tags.Distinct().Where(t => t.Contains(_query?.Trim() ?? "", StringComparison.OrdinalIgnoreCase)).Order();
+    private async Task Choose(string? tag)
+    {
+        _query = null;
+        await ValueChanged.InvokeAsync(tag);
+    }
+}

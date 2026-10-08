@@ -32,7 +32,7 @@ public static class PromptComposer
 }
 
 /// <summary>All business logic; shared by the Blazor UI and the REST API so both behave identically.</summary>
-public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, ResultQueue queue, JudgeQueue judgeQueue, EvalEvents events, LlmClientFactory clients)
+public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, ResultQueue queue, JudgeQueue judgeQueue, EvalEvents events, LlmClientFactory clients, RunControl control)
 {
     // ───────────────────────── users ─────────────────────────
 
@@ -137,7 +137,8 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task DeleteProviderAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        if (await db.Results.AnyAsync(r => r.Model.ProviderId == id, ct) || await db.JudgeRuns.AnyAsync(r => r.Model.ProviderId == id, ct))
+        if (await db.Results.AnyAsync(r => r.Model.ProviderId == id, ct) || await db.JudgeRuns.AnyAsync(r => r.Model.ProviderId == id, ct)
+            || await db.BatchSummaryRuns.AnyAsync(r => r.Model.ProviderId == id, ct))
             throw EvalException.Conflict("errors.providerHasHistory");
         var n = await db.Providers.Where(p => p.Id == id).ExecuteDeleteAsync(ct);
         if (n == 0) throw EvalException.NotFound("provider");
@@ -231,7 +232,8 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task DeleteModelAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        if (await db.Results.AnyAsync(r => r.ModelId == id, ct) || await db.JudgeRuns.AnyAsync(r => r.ModelId == id, ct))
+        if (await db.Results.AnyAsync(r => r.ModelId == id, ct) || await db.JudgeRuns.AnyAsync(r => r.ModelId == id, ct)
+            || await db.BatchSummaryRuns.AnyAsync(r => r.ModelId == id, ct))
             throw EvalException.Conflict("errors.modelHasHistory");
         var n = await db.Models.Where(m => m.Id == id).ExecuteDeleteAsync(ct);
         if (n == 0) throw EvalException.NotFound("model");
@@ -240,7 +242,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
 
     // ───────────────────────── test cases ─────────────────────────
 
-    public async Task<List<TestCaseSummaryDto>> GetTestCasesAsync(string? search = null, string? tag = null, CancellationToken ct = default)
+    public async Task<List<TestCaseSummaryDto>> GetTestCasesAsync(string? search = null, string? tag = null, CancellationToken ct = default, string? category = null, bool uncategorized = false)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.TestCases.AsQueryable();
@@ -250,6 +252,8 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
             q = q.Where(t => EF.Functions.ILike(t.Title, pattern) || EF.Functions.ILike(t.Prompt, pattern));
         }
         if (!string.IsNullOrWhiteSpace(tag)) q = q.Where(t => t.Tags.Contains(tag));
+        if (uncategorized) q = q.Where(t => t.Category == null);
+        else if (!string.IsNullOrWhiteSpace(category)) q = q.Where(t => t.Category == category.Trim());
 
         return await q.OrderByDescending(t => t.UpdatedAt)
             .Select(t => new TestCaseSummaryDto(
@@ -260,8 +264,33 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
                 t.Iterations.Max(i => (DateTimeOffset?)i.CreatedAt),
                 t.Iterations.SelectMany(i => i.Results).SelectMany(r => r.Ratings).Average(r => (double?)r.Stars),
                 t.CreatedBy != null ? t.CreatedBy.Name : null,
-                t.CreatedAt))
+                t.CreatedAt, t.Category))
             .ToListAsync(ct);
+    }
+
+    public static string? NormalizeCategory(string? category)
+    {
+        var value = Blank(category);
+        if (value?.Length > 120) throw EvalException.Invalid("errors.categoryTooLong");
+        return value;
+    }
+
+    public async Task<List<string>> GetCategoriesAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.TestCases.Where(t => t.Category != null).Select(t => t.Category!).Distinct().OrderBy(c => c).ToListAsync(ct);
+    }
+
+    public async Task<int> SetTestCaseCategoryAsync(SetTestCaseCategoryRequest req, CancellationToken ct = default)
+    {
+        var category = NormalizeCategory(req.Category);
+        var ids = (req.TestCaseIds ?? []).Distinct().ToList();
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var count = await db.TestCases.Where(t => ids.Contains(t.Id)).ExecuteUpdateAsync(s => s
+            .SetProperty(t => t.Category, category)
+            .SetProperty(t => t.UpdatedAt, DateTimeOffset.UtcNow), ct);
+        if (count > 0) events.Raise();
+        return count;
     }
 
     public async Task<List<string>> GetTagsAsync(CancellationToken ct = default)
@@ -279,7 +308,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
         var iterations = await IterationSummaries(db.Iterations.Where(i => i.TestCaseId == id).OrderByDescending(i => i.Number))
             .ToListAsync(ct);
         return new TestCaseDto(t.Id, t.Title, t.SystemPrompt, t.Prompt, t.Data, t.Tags, t.CreatedById, t.CreatedBy?.Name,
-            t.CreatedAt, t.UpdatedAt, iterations, t.ExpectedAnswer);
+            t.CreatedAt, t.UpdatedAt, iterations, t.ExpectedAnswer, t.Category);
     }
 
     public async Task<TestCaseDto> CreateTestCaseAsync(UpsertTestCaseRequest req, CancellationToken ct = default)
@@ -318,6 +347,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
         t.Data = string.IsNullOrWhiteSpace(req.Data) ? null : req.Data;
         t.ExpectedAnswer = string.IsNullOrWhiteSpace(req.ExpectedAnswer) ? null : req.ExpectedAnswer;
         t.SystemPrompt = Blank(req.SystemPrompt);
+        t.Category = NormalizeCategory(req.Category);
         t.Tags = (req.Tags ?? []).Select(x => x.Trim().ToLowerInvariant()).Where(x => x.Length > 0).Distinct().ToList();
     }
 
@@ -408,13 +438,13 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
             reveal ? ToRef(r.Model) : null,
             r.Status, r.Output, r.Error, r.InputTokens, r.OutputTokens, r.LatencyMs, r.StartedAt, r.CompletedAt,
             r.Ratings.Count > 0 ? r.Ratings.Average(x => x.Stars) : null,
-            r.Ratings.OrderBy(x => x.CreatedAt).Select(ToDto).ToList())).ToList();
+            r.Ratings.OrderBy(x => x.CreatedAt).Select(ToDto).ToList(), r.CostUsd)).ToList();
 
         return new IterationDto(it.Id, it.TestCaseId, it.TestCase.Title, it.Number, it.Note, it.SystemPromptSnapshot,
             it.UserMessageSnapshot, it.CreatedBy?.Name, it.CreatedAt, reveal,
-            results.All(r => r.Status is ResultStatus.Completed or ResultStatus.Failed), results,
+            results.All(r => r.Status is ResultStatus.Completed or ResultStatus.Failed or ResultStatus.Cancelled), results,
             it.JudgeRuns.OrderBy(j => j.CreatedAt).Select(j => new JudgeRunDto(j.Id, j.ModelId, j.Model.DisplayName,
-                j.Model.Provider.Type, j.Status, j.Error, j.RawOutput, j.LatencyMs, j.CreatedAt, j.CompletedAt)).ToList(),
+                j.Model.Provider.Type, j.Status, j.Error, j.RawOutput, j.LatencyMs, j.CreatedAt, j.CompletedAt, j.CostUsd)).ToList(),
             it.BatchId is { } batchId ? await BatchNavAsync(db, batchId, it.Id, it.Repetition, ct) : null,
             it.ExpectedAnswerSnapshot);
     }
@@ -429,6 +459,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
 
     public async Task RetryResultAsync(Guid resultId, CancellationToken ct = default)
     {
+        await control.WaitForIdleAsync(resultId, ct);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var r = await db.Results.FindAsync([resultId], ct) ?? throw EvalException.NotFound("result");
         if (r.Status is ResultStatus.Pending or ResultStatus.Running) return;
@@ -436,6 +467,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
         r.Output = null;
         r.Error = null;
         r.LatencyMs = null;
+        r.CostUsd = null;
         r.InputTokens = r.OutputTokens = null;
         r.StartedAt = r.CompletedAt = null;
         await db.Ratings.Where(x => x.ResultId == resultId).ExecuteDeleteAsync(ct);
@@ -634,7 +666,8 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
             i.Results.SelectMany(r => r.Ratings).Average(r => (double?)r.Stars),
             i.BatchId,
             i.Batch != null ? i.Batch.Name : null,
-            i.Repetition));
+            i.Repetition,
+            i.Results.Count(r => r.Status == ResultStatus.Cancelled)));
 
     private static async Task<Guid?> ExistingUserId(AppDbContext db, Guid? id, CancellationToken ct) =>
         id is { } uid && await db.Users.AnyAsync(u => u.Id == uid, ct) ? uid : null;

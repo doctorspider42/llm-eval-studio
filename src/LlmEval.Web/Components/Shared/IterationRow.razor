@@ -9,16 +9,20 @@
         </div>
         @if (Item.IsRunning)
         {
-            <div class="progress" style="margin-top:6px"><i style="width:@((Item.CompletedCount + Item.FailedCount) * 100 / Math.Max(1, Item.ResultCount))%"></i></div>
+            <div class="progress" style="margin-top:6px"><i style="width:@((Item.CompletedCount + Item.FailedCount + Item.CancelledCount) * 100 / Math.Max(1, Item.ResultCount))%"></i></div>
         }
     </div>
     @if (Item.IsRunning)
     {
-        <span class="badge badge-running"><span class="dot"></span>@(Item.CompletedCount + Item.FailedCount)/@Item.ResultCount</span>
+        <span class="badge badge-running"><span class="dot"></span>@(Item.CompletedCount + Item.FailedCount + Item.CancelledCount)/@Item.ResultCount</span>
     }
     else if (Item.FailedCount > 0)
     {
         <span class="badge badge-failed" title="@L["iterations.row.failed"]">@Item.FailedCount ✕</span>
+    }
+    @if (!Item.IsRunning && Item.CancelledCount > 0)
+    {
+        <span class="badge badge-cancelled" title="@L["status.cancelled"]">@Item.CancelledCount ■</span>
     }
     <div style="text-align:right;min-width:74px">
         <div class="score">@L.Stars(Item.AvgStars) <Icon Name="star" Size="12" Filled Stroke="0" Class="star-ico" /></div>

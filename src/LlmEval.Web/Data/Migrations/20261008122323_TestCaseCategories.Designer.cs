@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using LlmEval.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LlmEval.Web.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261008122323_TestCaseCategories")]
+    partial class TestCaseCategories
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -64,72 +67,11 @@ namespace LlmEval.Web.Data.Migrations
                     b.ToTable("Batches");
                 });
 
-            modelBuilder.Entity("LlmEval.Web.Data.BatchSummaryRun", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BatchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CasesJson")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("CompletedCases")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Error")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Language")
-                        .IsRequired()
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
-                    b.Property<Guid>("ModelId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Overview")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SourceHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<int>("TotalCases")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ModelId");
-
-                    b.HasIndex("BatchId", "ModelId", "Language")
-                        .IsUnique();
-
-                    b.ToTable("BatchSummaryRuns");
-                });
-
             modelBuilder.Entity("LlmEval.Web.Data.Iteration", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("AutoJudgeSuppressed")
-                        .HasColumnType("boolean");
 
                     b.Property<Guid?>("BatchId")
                         .HasColumnType("uuid");
@@ -183,9 +125,6 @@ namespace LlmEval.Web.Data.Migrations
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<decimal?>("CostUsd")
-                        .HasColumnType("numeric");
-
                     b.Property<string>("Error")
                         .HasColumnType("text");
 
@@ -235,9 +174,6 @@ namespace LlmEval.Web.Data.Migrations
 
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal?>("CostUsd")
-                        .HasColumnType("numeric");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -488,25 +424,6 @@ namespace LlmEval.Web.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("CreatedBy");
-                });
-
-            modelBuilder.Entity("LlmEval.Web.Data.BatchSummaryRun", b =>
-                {
-                    b.HasOne("LlmEval.Web.Data.Batch", "Batch")
-                        .WithMany()
-                        .HasForeignKey("BatchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("LlmEval.Web.Data.LlmModel", "Model")
-                        .WithMany()
-                        .HasForeignKey("ModelId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Batch");
-
-                    b.Navigation("Model");
                 });
 
             modelBuilder.Entity("LlmEval.Web.Data.Iteration", b =>

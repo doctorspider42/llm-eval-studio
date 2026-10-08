@@ -22,6 +22,9 @@ builder.Services.AddHttpClient("llm", c => c.Timeout = TimeSpan.FromMinutes(10))
 builder.Services.AddHttpClient("hf", c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<ImportService>();
 builder.Services.AddSingleton<ReportService>();
+builder.Services.AddSingleton<BatchSummaryService>();
+builder.Services.AddSingleton<BatchSummaryQueue>();
+builder.Services.AddHostedService<BatchSummaryRunner>();
 builder.Services.AddSingleton<ILlmClient, OpenAiClient>();
 builder.Services.AddSingleton<ILlmClient, OpenRouterClient>();
 builder.Services.AddSingleton<ILlmClient, AnthropicClient>();
@@ -31,6 +34,7 @@ builder.Services.AddSingleton<ILlmClient, CodexCliClient>();
 builder.Services.AddSingleton<LlmClientFactory>();
 
 builder.Services.AddSingleton<EvalEvents>();
+builder.Services.AddSingleton<RunControl>();
 builder.Services.AddSingleton<ResultQueue>();
 builder.Services.AddSingleton<JudgeQueue>();
 builder.Services.AddSingleton<EvalService>();

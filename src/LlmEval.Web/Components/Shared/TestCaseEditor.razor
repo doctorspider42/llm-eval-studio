@@ -27,6 +27,7 @@
                 <summary class="small muted" style="cursor:pointer">@L["testcases.case.systemPrompt"] (@L["common.optional"])</summary>
                 <textarea class="textarea" rows="3" style="margin-top:8px" @bind="_system" placeholder="@L["testcases.editor.systemPh"]"></textarea>
             </details>
+            <CategoryInput @bind-Value="_category" Categories="_categories" />
             <div class="field">
                 <label>@L["testcases.editor.tags"]</label>
                 <input class="input" @bind="_tags" placeholder="@L["testcases.editor.tagsPh"]" />
@@ -45,13 +46,17 @@
     [Parameter] public TestCaseDto? Existing { get; set; }
     [Parameter] public EventCallback<TestCaseDto> OnSaved { get; set; }
 
-    private string? _title, _prompt, _data, _system, _tags, _expected;
+    private string? _title, _prompt, _data, _system, _tags, _expected, _category;
+    private List<string> _categories = [];
     private bool _saving, _wasOpen;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (Open && !_wasOpen)
         {
+            _wasOpen = true;
+            _category = Existing?.Category;
+            _categories = await Svc.GetCategoriesAsync();
             _title = Existing?.Title;
             _prompt = Existing?.Prompt;
             _data = Existing?.Data;
@@ -67,7 +72,7 @@
         _saving = true;
         var req = new UpsertTestCaseRequest(_title ?? "", _prompt ?? "", _data, _system,
             (_tags ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-            Me.User?.Id, _expected);
+            Me.User?.Id, _expected, _category);
         TestCaseDto? saved = null;
         var ok = await Toasts.Try(async () =>
             saved = Existing is null ? await Svc.CreateTestCaseAsync(req) : await Svc.UpdateTestCaseAsync(Existing.Id, req), L["common.saved"]);

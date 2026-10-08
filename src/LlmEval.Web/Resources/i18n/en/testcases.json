@@ -54,5 +54,19 @@
   "testcases.picker.addProvider": "Add a provider",
   "testcases.picker.selected": "Selected:",
   "testcases.picker.selectAll": "Select all available",
-  "testcases.picker.providerOff": "provider disabled"
+  "testcases.picker.providerOff": "provider disabled",
+  "testcases.category": "Category",
+  "testcases.categoryPh": "Choose an existing category or type a new one…",
+  "testcases.categoryHint": "One category groups cases. Leave blank for no category.",
+  "testcases.allCategories": "All categories",
+  "testcases.uncategorized": "Uncategorized",
+  "testcases.setCategory": "Change category",
+  "testcases.categorySelected": "Change the category for {0} selected cases.",
+  "testcases.importCategory": "Imported",
+  "testcases.tagFilter": "Filter by tag",
+  "testcases.searchTags": "Search tags…",
+  "testcases.clearTag": "Clear tag filter",
+  "testcases.tagSearchHint": "Type part of a name to find a tag.",
+  "testcases.noTags": "No matching tags.",
+  "testcases.moreTags": "Showing 20 tags. Refine your search."
 }

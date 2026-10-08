@@ -35,6 +35,7 @@ public class IterationRunner(
     IDbContextFactory<AppDbContext> dbFactory,
     LlmClientFactory clients,
     EvalEvents events,
+    RunControl control,
     EvalService evalService,
     IConfiguration config,
     ILogger<IterationRunner> log) : BackgroundService
@@ -72,19 +73,28 @@ public class IterationRunner(
         }
     }
 
-    private async Task RunAsync(Guid resultId, CancellationToken ct)
+    private Task RunAsync(Guid resultId, CancellationToken ct) =>
+        control.RunAsync(resultId, ct, token => RunCoreAsync(resultId, token));
+
+    private async Task RunCoreAsync(Guid resultId, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var result = await db.Results
-            .Include(r => r.Iteration)
-            .Include(r => r.Model).ThenInclude(m => m.Provider)
-            .FirstOrDefaultAsync(r => r.Id == resultId, ct);
-        if (result is null || result.Status is ResultStatus.Completed or ResultStatus.Failed) return;
+        await control.Gate.WaitAsync(ct);
+        IterationResult? result;
+        try
+        {
+            result = await db.Results
+                .Include(r => r.Iteration)
+                .Include(r => r.Model).ThenInclude(m => m.Provider)
+                .FirstOrDefaultAsync(r => r.Id == resultId, ct);
+            if (result is null || result.Status is not (ResultStatus.Pending or ResultStatus.Running)) return;
 
-        result.Status = ResultStatus.Running;
-        result.StartedAt = DateTimeOffset.UtcNow;
-        result.Error = null;
-        await db.SaveChangesAsync(ct);
+            result.Status = ResultStatus.Running;
+            result.StartedAt = DateTimeOffset.UtcNow;
+            result.Error = null;
+            await db.SaveChangesAsync(ct);
+        }
+        finally { control.Gate.Release(); }
         events.RaiseIteration(result.IterationId);
 
         var sw = Stopwatch.StartNew();
@@ -94,6 +104,7 @@ public class IterationRunner(
                 result.Iteration.SystemPromptSnapshot, result.Iteration.UserMessageSnapshot);
             var response = await clients.For(result.Model.Provider.Type).CompleteAsync(request, ct);
 
+            result.CostUsd = response.CostUsd;
             result.Output = response.Output;
             result.InputTokens = response.InputTokens;
             result.OutputTokens = response.OutputTokens;
@@ -101,7 +112,7 @@ public class IterationRunner(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw; // shutting down – stays Running and will be requeued on next start
+            throw; // User cancellation is already persisted; host shutdown remains restartable.
         }
         catch (Exception ex)
         {
@@ -114,7 +125,14 @@ public class IterationRunner(
 
         result.LatencyMs = sw.ElapsedMilliseconds;
         result.CompletedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(CancellationToken.None);
+        await control.Gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!await db.Results.AsNoTracking().AnyAsync(x => x.Id == resultId && x.Status == ResultStatus.Running)) return;
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        finally { control.Gate.Release(); }
         events.RaiseIteration(result.IterationId);
 
         if (result.Iteration.BatchId is not null)

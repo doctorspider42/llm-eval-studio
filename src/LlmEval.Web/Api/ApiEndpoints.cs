@@ -81,8 +81,12 @@ public static class ApiEndpoints
 
         // ── test cases ──
         var cases = api.MapGroup("/test-cases").WithTags("Test cases");
-        cases.MapGet("/", (EvalService s, CancellationToken ct, string? search = null, string? tag = null) => s.GetTestCasesAsync(search, tag, ct))
-            .WithSummary("List test cases (optional ?search= and ?tag=)");
+        cases.MapGet("/", (EvalService s, CancellationToken ct, string? search = null, string? tag = null, string? category = null, bool uncategorized = false) => s.GetTestCasesAsync(search, tag, ct, category, uncategorized))
+            .WithSummary("List test cases (optional ?search=, ?tag=, ?category=, ?uncategorized=true)");
+        cases.MapGet("/categories", (EvalService s, CancellationToken ct) => s.GetCategoriesAsync(ct))
+            .WithSummary("All distinct categories");
+        cases.MapPut("/category", (SetTestCaseCategoryRequest req, EvalService s, CancellationToken ct) => s.SetTestCaseCategoryAsync(req, ct))
+            .WithSummary("Set or clear the category for selected test cases");
         cases.MapGet("/tags", (EvalService s, CancellationToken ct) => s.GetTagsAsync(ct))
             .WithSummary("All distinct tags");
         cases.MapGet("/{id:guid}", (Guid id, EvalService s, CancellationToken ct) => s.GetTestCaseAsync(id, ct))
@@ -123,6 +127,12 @@ public static class ApiEndpoints
 
         // ── iterations ──
         var iterations = api.MapGroup("/iterations").WithTags("Iterations");
+        iterations.MapPost("/{id:guid}/cancel", async (Guid id, EvalService s, CancellationToken ct, bool judges = false) =>
+            {
+                await s.CancelIterationAsync(id, judges, ct);
+                return Results.NoContent();
+            })
+            .WithSummary("Cancel pending and running judges (?judges=true) or answers");
         iterations.MapGet("/", (EvalService s, CancellationToken ct, Guid? testCaseId = null, int take = 50) => s.GetIterationsAsync(testCaseId, take, ct))
             .WithSummary("Recent iterations (optional ?testCaseId=)");
         iterations.MapGet("/{id:guid}", (Guid id, EvalService s, CancellationToken ct, bool reveal = false) => s.GetIterationAsync(id, reveal, ct))
@@ -154,6 +164,12 @@ public static class ApiEndpoints
 
         // ── series (batches) ──
         var batches = api.MapGroup("/batches").WithTags("Series");
+        batches.MapPost("/{id:guid}/cancel", async (Guid id, EvalService s, CancellationToken ct, bool judges = false) =>
+            {
+                await s.CancelBatchAsync(id, judges, ct);
+                return Results.NoContent();
+            })
+            .WithSummary("Cancel pending and running judges (?judges=true) or answers");
         batches.MapGet("/", (EvalService s, CancellationToken ct, int take = 100) => s.GetBatchesAsync(take, ct))
             .WithSummary("Series with progress counters");
         batches.MapPost("/", async (CreateBatchRequest req, EvalService s, CancellationToken ct) =>
@@ -182,6 +198,11 @@ public static class ApiEndpoints
                 s.JudgeBatchAsync(id, req ?? new JudgeBatchRequest(), ct))
             .WithSummary("AI-judge every finished iteration of the series (onlyUnjudged=true skips already judged ones). " +
                          "Unfinished iterations switch the series to autoJudge and get judged when done.");
+        batches.MapGet("/{id:guid}/summaries", (Guid id, BatchSummaryService s, CancellationToken ct) => s.GetAsync(id, ct))
+            .WithSummary("Get saved AI summaries across all repetitions, including progress and stale status");
+        batches.MapPost("/{id:guid}/summaries", async (Guid id, SummarizeBatchRequest req, BatchSummaryService s, CancellationToken ct) =>
+            Results.Accepted($"/api/batches/{id}/summaries", await s.GenerateAsync(id, req, ct)))
+            .WithSummary("Generate a blind AI summary per task and for the entire finished series. Cached unless regenerate=true or evidence changed.");
         batches.MapPost("/{id:guid}/auto-judge", async (Guid id, bool enabled, EvalService s, CancellationToken ct) =>
             {
                 await s.SetBatchAutoJudgeAsync(id, enabled, ct);
@@ -198,8 +219,20 @@ public static class ApiEndpoints
             })
             .WithSummary("Delete the series with all its iterations");
 
+        api.MapPost("/judge-runs/{id:guid}/cancel", async (Guid id, EvalService s, CancellationToken ct) =>
+        {
+            await s.CancelJudgeAsync(id, ct);
+            return Results.NoContent();
+        }).WithTags("Iterations").WithSummary("Cancel a pending or running AI judge");
+
         // ── results & ratings ──
         var results = api.MapGroup("/results").WithTags("Ratings");
+        results.MapPost("/{id:guid}/cancel", async (Guid id, EvalService s, CancellationToken ct) =>
+            {
+                await s.CancelResultAsync(id, ct);
+                return Results.NoContent();
+            })
+            .WithSummary("Cancel pending and running answer");
         results.MapPut("/{id:guid}/rating", (Guid id, RateResultRequest req, EvalService s, CancellationToken ct) => s.RateAsync(id, req, ct))
             .WithSummary("Create or replace the user's rating (1–5 stars + optional comment) of one answer");
         results.MapDelete("/{id:guid}/rating/{userId:guid}", async (Guid id, Guid userId, EvalService s, CancellationToken ct) =>

@@ -16,17 +16,17 @@ public record ProviderDto(Guid Id, string Name, ProviderType Type, string? BaseU
 public record ModelRef(Guid Id, string DisplayName, string ModelId, string ProviderName, ProviderType ProviderType);
 
 public record TestCaseSummaryDto(Guid Id, string Title, string PromptPreview, List<string> Tags, int IterationCount,
-    DateTimeOffset? LastRunAt, double? AvgStars, string? CreatedBy, DateTimeOffset CreatedAt);
+    DateTimeOffset? LastRunAt, double? AvgStars, string? CreatedBy, DateTimeOffset CreatedAt, string? Category = null);
 
 public record TestCaseDto(Guid Id, string Title, string? SystemPrompt, string Prompt, string? Data, List<string> Tags,
     Guid? CreatedById, string? CreatedBy, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, List<IterationSummaryDto> Iterations,
-    string? ExpectedAnswer = null);
+    string? ExpectedAnswer = null, string? Category = null);
 
 public record IterationSummaryDto(Guid Id, Guid TestCaseId, string TestCaseTitle, int Number, string? Note, string? CreatedBy,
     DateTimeOffset CreatedAt, int ResultCount, int CompletedCount, int FailedCount, int RatingCount, double? AvgStars,
-    Guid? BatchId = null, string? BatchName = null, int? Repetition = null)
+    Guid? BatchId = null, string? BatchName = null, int? Repetition = null, int CancelledCount = 0)
 {
-    public bool IsRunning => CompletedCount + FailedCount < ResultCount;
+    public bool IsRunning => CompletedCount + FailedCount + CancelledCount < ResultCount;
 }
 
 public record RatingDto(Guid Id, Guid ResultId, Guid UserId, string UserName, int UserAvatarHue, bool UserIsBot, bool UserIsAiJudge,
@@ -34,12 +34,12 @@ public record RatingDto(Guid Id, Guid ResultId, Guid UserId, string UserName, in
 
 /// <summary>Judge model is always visible – it's the evaluator, not the evaluated.</summary>
 public record JudgeRunDto(Guid Id, Guid ModelId, string ModelName, ProviderType ProviderType, ResultStatus Status, string? Error,
-    string? RawOutput, long? LatencyMs, DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt);
+    string? RawOutput, long? LatencyMs, DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt, decimal? CostUsd = null);
 
 /// <summary>Model is null unless the iteration was requested with reveal=true.</summary>
 public record ResultDto(Guid Id, int Slot, string Label, ModelRef? Model, ResultStatus Status, string? Output, string? Error,
     int? InputTokens, int? OutputTokens, long? LatencyMs, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt,
-    double? AvgStars, List<RatingDto> Ratings);
+    double? AvgStars, List<RatingDto> Ratings, decimal? CostUsd = null);
 
 public record IterationDto(Guid Id, Guid TestCaseId, string TestCaseTitle, int Number, string? Note, string? SystemPrompt,
     string UserMessage, string? CreatedBy, DateTimeOffset CreatedAt, bool Revealed, bool IsComplete, List<ResultDto> Results,
@@ -93,7 +93,9 @@ public record UpsertModelRequest(Guid ProviderId, string ModelId, string? Displa
     int? MaxTokens = null, bool Enabled = true, bool IsJudge = false);
 
 public record UpsertTestCaseRequest(string Title, string Prompt, string? Data = null, string? SystemPrompt = null,
-    List<string>? Tags = null, Guid? UserId = null, string? ExpectedAnswer = null);
+    List<string>? Tags = null, Guid? UserId = null, string? ExpectedAnswer = null, string? Category = null);
+
+public record SetTestCaseCategoryRequest(List<Guid> TestCaseIds, string? Category = null);
 
 public record RunIterationRequest(List<Guid> ModelIds, Guid? UserId = null, string? Note = null);
 

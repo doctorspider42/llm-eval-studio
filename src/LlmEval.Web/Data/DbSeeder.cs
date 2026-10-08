@@ -95,7 +95,7 @@ public static class DbSeeder
     {
         TestCase T(string title, string prompt, string? data, string[] tags, string? system = null) => new()
         {
-            Title = title, Prompt = prompt, Data = data, Tags = [.. tags], SystemPrompt = system, CreatedById = user.Id
+            Title = title, Prompt = prompt, Data = data, Tags = [.. tags], Category = "Przykładowe", SystemPrompt = system, CreatedById = user.Id
         };
 
         yield return T("Streszczenie spotkania – sprint planning",

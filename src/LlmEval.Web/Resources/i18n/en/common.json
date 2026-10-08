@@ -45,5 +45,7 @@
   "plural.chars.one": "{0:N0} character",
   "plural.chars.many": "{0:N0} characters",
   "plural.errors.one": "{0} error",
-  "plural.errors.many": "{0} errors"
+  "plural.errors.many": "{0} errors",
+  "common.stop": "Stop",
+  "status.cancelled": "Cancelled"
 }

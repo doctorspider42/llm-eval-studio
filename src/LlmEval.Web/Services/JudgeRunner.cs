@@ -25,6 +25,7 @@ public partial class JudgeRunner(
     IDbContextFactory<AppDbContext> dbFactory,
     LlmClientFactory clients,
     EvalEvents events,
+    RunControl control,
     IConfiguration config,
     ILogger<JudgeRunner> log) : BackgroundService
 {
@@ -82,18 +83,27 @@ public partial class JudgeRunner(
         }
     }
 
-    private async Task RunAsync(Guid runId, CancellationToken ct)
+    private Task RunAsync(Guid runId, CancellationToken ct) =>
+        control.RunAsync(runId, ct, token => RunCoreAsync(runId, token));
+
+    private async Task RunCoreAsync(Guid runId, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var run = await db.JudgeRuns
-            .Include(r => r.Model).ThenInclude(m => m.Provider)
-            .Include(r => r.Iteration).ThenInclude(i => i.Results)
-            .FirstOrDefaultAsync(r => r.Id == runId, ct);
-        if (run is null || run.Status is ResultStatus.Completed or ResultStatus.Failed) return;
+        await control.Gate.WaitAsync(ct);
+        JudgeRun? run;
+        try
+        {
+            run = await db.JudgeRuns
+                .Include(r => r.Model).ThenInclude(m => m.Provider)
+                .Include(r => r.Iteration).ThenInclude(i => i.Results)
+                .FirstOrDefaultAsync(r => r.Id == runId, ct);
+            if (run is null || run.Status is not (ResultStatus.Pending or ResultStatus.Running)) return;
 
-        run.Status = ResultStatus.Running;
-        run.Error = null;
-        await db.SaveChangesAsync(ct);
+            run.Status = ResultStatus.Running;
+            run.Error = null;
+            await db.SaveChangesAsync(ct);
+        }
+        finally { control.Gate.Release(); }
         events.RaiseIteration(run.IterationId);
 
         var sw = Stopwatch.StartNew();
@@ -105,10 +115,14 @@ public partial class JudgeRunner(
             var prompt = BuildPrompt(run.Iteration, answers);
             var response = await clients.For(run.Model.Provider.Type)
                 .CompleteAsync(new LlmRequest(run.Model.Provider, run.Model, SystemPrompt, prompt), ct);
+            run.CostUsd = response.CostUsd;
             run.RawOutput = response.Output;
 
             var verdicts = Parse(response.Output, answers);
-            var judgeUser = await EnsureJudgeUserAsync(db, run.Model, ct);
+            // Creating the bot must not flush this run's unfinished output/cost to the database.
+            User judgeUser;
+            await using (var userDb = await dbFactory.CreateDbContextAsync(ct))
+                judgeUser = await EnsureJudgeUserAsync(userDb, run.Model, ct);
             var resultIds = verdicts.Keys.Select(r => r.Id).ToList();
             var existing = await db.Ratings.Where(x => x.UserId == judgeUser.Id && resultIds.Contains(x.ResultId)).ToListAsync(ct);
 
@@ -142,7 +156,14 @@ public partial class JudgeRunner(
 
         run.LatencyMs = sw.ElapsedMilliseconds;
         run.CompletedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(CancellationToken.None);
+        await control.Gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!await db.JudgeRuns.AsNoTracking().AnyAsync(x => x.Id == runId && x.Status == ResultStatus.Running)) return;
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        finally { control.Gate.Release(); }
         events.RaiseIteration(run.IterationId);
     }
 

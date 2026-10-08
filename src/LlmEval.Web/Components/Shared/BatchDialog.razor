@@ -29,10 +29,12 @@
                             <Icon Name="search" />
                             <input class="input" style="height:32px;padding-top:4px;padding-bottom:4px" placeholder="@L["batch.dialog.filter"]" @bind="_filter" @bind:event="oninput" />
                         </div>
-                        @foreach (var tag in _cases.SelectMany(c => c.Tags).Distinct().Order())
-                        {
-                            <button class="chip @(_tagFilter == tag ? "on" : "")" title="@L["batch.dialog.tagOnly"]" @onclick="() => _tagFilter = _tagFilter == tag ? null : tag">@tag</button>
-                        }
+                        <select class="select" style="width:220px;max-width:100%" aria-label="@L["testcases.category"]" @bind="_categoryFilter">
+                            <option value="">@L["testcases.allCategories"]</option>
+                            <option value="uncategorized">@L["testcases.uncategorized"]</option>
+                            @foreach (var category in _cases.Select(c => c.Category).OfType<string>().Distinct().Order()) { <option value="@("category:" + category)">@category</option> }
+                        </select>
+                        <TagFilter Tags="_cases.SelectMany(c => c.Tags)" @bind-Value="_tagFilter" />
                     </div>
                     <div class="picker-list">
                         @foreach (var c in Visible)
@@ -41,6 +43,7 @@
                             <div class="picker-item @(on ? "on" : "")" @onclick="() => ToggleCase(c.Id)">
                                 <span class="check" style="@(on ? "background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff" : "")"><Icon Name="check" Size="12" Stroke="3" /></span>
                                 <span class="grow ellipsis" style="font-weight:500">@c.Title</span>
+                                @if (c.Category is not null) { <span class="category-badge">@c.Category</span> }
                                 @foreach (var tag in c.Tags.Take(3)) { <span class="tag">@tag</span> }
                             </div>
                         }
@@ -135,7 +138,7 @@
     private List<ModelDto>? _models;
     private List<ModelDto> _judges = [];
     private readonly HashSet<Guid> _caseSel = [], _modelSel = [], _judgeSel = [];
-    private string? _filter, _tagFilter, _name;
+    private string? _filter, _tagFilter, _categoryFilter, _name;
     private int _reps = 3;
     private bool _autoJudge, _running, _wasOpen;
 
@@ -144,6 +147,7 @@
     private string DefaultName => L["batch.dialog.defaultName", DateTime.Now.ToString("yyyy-MM-dd HH:mm")];
 
     private IEnumerable<TestCaseSummaryDto> Visible => _cases!
+        .Where(c => string.IsNullOrEmpty(_categoryFilter) || (_categoryFilter == "uncategorized" ? c.Category is null : c.Category == _categoryFilter[9..]))
         .Where(c => _tagFilter is null || c.Tags.Contains(_tagFilter))
         .Where(c => string.IsNullOrWhiteSpace(_filter) || c.Title.Contains(_filter, StringComparison.OrdinalIgnoreCase));
 
@@ -153,7 +157,7 @@
         {
             _wasOpen = true;
             _name = null;
-            _filter = _tagFilter = null;
+            _filter = _tagFilter = _categoryFilter = null;
             // Preselected cases go on top so you can see what you came with; order is fixed while the dialog is open.
             var pre = Preselected ?? [];
             _cases = (await Svc.GetTestCasesAsync()).OrderBy(c => pre.Contains(c.Id) ? 0 : 1).ThenBy(c => c.Title).ToList();

@@ -22,6 +22,7 @@ else
         <div style="min-width:0">
             <h1>@_tc.Title</h1>
             <div class="row wrap" style="margin-top:10px;gap:6px">
+                @if (_tc.Category is not null) { <span class="category-badge"><Icon Name="layers" Size="12" /> @_tc.Category</span> }
                 @foreach (var tag in _tc.Tags) { <span class="tag">@tag</span> }
                 <span class="small faint">@(_tc.CreatedBy is null ? "" : $"{_tc.CreatedBy} · ")@L["testcases.case.created", L.Ago(_tc.CreatedAt)]</span>
             </div>

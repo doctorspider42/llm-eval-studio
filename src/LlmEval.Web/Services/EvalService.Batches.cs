@@ -101,10 +101,10 @@ public partial class EvalService
             b.Repetitions,
             b.Iterations.Count,
             b.Iterations.SelectMany(i => i.Results).Count(),
-            b.Iterations.SelectMany(i => i.Results).Count(r => r.Status == ResultStatus.Completed || r.Status == ResultStatus.Failed),
+            b.Iterations.SelectMany(i => i.Results).Count(r => r.Status == ResultStatus.Completed || r.Status == ResultStatus.Failed || r.Status == ResultStatus.Cancelled),
             b.Iterations.SelectMany(i => i.Results).Count(r => r.Status == ResultStatus.Failed),
             b.Iterations.SelectMany(i => i.JudgeRuns).Count(),
-            b.Iterations.SelectMany(i => i.JudgeRuns).Count(j => j.Status == ResultStatus.Completed || j.Status == ResultStatus.Failed),
+            b.Iterations.SelectMany(i => i.JudgeRuns).Count(j => j.Status == ResultStatus.Completed || j.Status == ResultStatus.Failed || j.Status == ResultStatus.Cancelled),
             b.AutoJudge,
             b.Iterations.SelectMany(i => i.Results).SelectMany(r => r.Ratings).Average(x => (double?)x.Stars)));
 
@@ -178,12 +178,12 @@ public partial class EvalService
                     var ratings = i.Results.SelectMany(r => r.Ratings).ToList();
                     var completed = i.Results.Where(r => r.Status == ResultStatus.Completed).ToList();
                     return new BatchCellDto(i.Id, i.Rep, i.Number, i.Results.Count,
-                        i.Results.Count(r => r.Status is ResultStatus.Completed or ResultStatus.Failed),
+                        i.Results.Count(r => r.Status is ResultStatus.Completed or ResultStatus.Failed or ResultStatus.Cancelled),
                         i.Results.Count(r => r.Status == ResultStatus.Failed),
                         ratings.Count,
                         ratings.Count > 0 ? ratings.Average(x => x.Stars) : null,
                         i.Judges.Count,
-                        i.Judges.Count(s => s is ResultStatus.Completed or ResultStatus.Failed),
+                        i.Judges.Count(s => s is ResultStatus.Completed or ResultStatus.Failed or ResultStatus.Cancelled),
                         userId is { } uid && completed.Count > 0 && completed.All(r => r.Ratings.Any(x => x.UserId == uid)),
                         i.Results.OrderBy(r => modelOrder.IndexOf(r.ModelId)).Select(r => new BatchCellModelDto(
                             aliasOf[r.ModelId], r.Status,
@@ -253,8 +253,9 @@ public partial class EvalService
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             var it = await db.Iterations.Include(i => i.Batch).Include(i => i.Results).FirstOrDefaultAsync(i => i.Id == iterationId, ct);
-            if (it?.Batch is not { AutoJudge: true } batch) return;
+            if (it?.Batch is not { AutoJudge: true } batch || it.AutoJudgeSuppressed) return;
             if (it.Results.Any(r => r.Status is ResultStatus.Pending or ResultStatus.Running)) return;
+            if (it.Results.Any(r => r.Status == ResultStatus.Cancelled)) return;
             if (it.Results.All(r => r.Status != ResultStatus.Completed)) return;
 
             List<LlmModel> judges;

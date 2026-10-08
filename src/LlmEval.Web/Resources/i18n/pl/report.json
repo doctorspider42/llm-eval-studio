@@ -48,5 +48,10 @@
   "report.method": "Metodologia",
   "report.method.text": "Każdy przypadek uruchomiono na wszystkich modelach, w każdej iteracji w losowej kolejności. Oceniający – ludzie i sędziowie AI – widzieli odpowiedzi wyłącznie jako „Model 1, 2…”, bez nazw modeli. Sędziowie AI otrzymali polecenie, oczekiwaną odpowiedź (jeśli była) i anonimowe odpowiedzi. „Wygrana” = najwyższa średnia w iteracji (remisy liczą się wszystkim). Rozrzut σ to odchylenie standardowe średnich ocen pojedynczych odpowiedzi danego modelu.",
   "report.method.judges": "Sędziowie AI: {0}.",
-  "report.footer": "LLM Eval Studio · {0}"
+  "report.footer": "LLM Eval Studio · {0}",
+  "report.toolbar.summaries": "Podsumowania AI",
+  "report.summary.title": "Wnioski sędziego AI dla całej serii",
+  "report.summary.by": "Sędzia: {0} · wygenerowano {1}",
+  "report.summary.repetitions": "Wnioski ze wszystkich powtórzeń ({0})",
+  "report.summary.method": "Podsumowania AI obejmują wszystkie powtórzenia każdego zadania, z uwzględnieniem błędów wykonania, oraz łączą wnioski dla całej serii. Są osobną syntezą odpowiedzi i istniejących ocen; nie zmieniają ocen ani statystyk w raporcie."
 }

@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Rating> Ratings => Set<Rating>();
     public DbSet<JudgeRun> JudgeRuns => Set<JudgeRun>();
     public DbSet<Batch> Batches => Set<Batch>();
+    public DbSet<BatchSummaryRun> BatchSummaryRuns => Set<BatchSummaryRun>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -42,6 +43,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<TestCase>(e =>
         {
             e.Property(x => x.Title).HasMaxLength(300);
+            e.Property(x => x.Category).HasMaxLength(120);
+            e.HasIndex(x => x.Category);
             e.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.SetNull);
             e.HasMany(x => x.Iterations).WithOne(x => x.TestCase).HasForeignKey(x => x.TestCaseId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -64,6 +67,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<JudgeRun>(e =>
         {
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.HasOne(x => x.Model).WithMany().HasForeignKey(x => x.ModelId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<BatchSummaryRun>(e =>
+        {
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Language).HasMaxLength(8);
+            e.Property(x => x.SourceHash).HasMaxLength(64);
+            e.HasIndex(x => new { x.BatchId, x.ModelId, x.Language }).IsUnique();
+            e.HasOne(x => x.Batch).WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Model).WithMany().HasForeignKey(x => x.ModelId).OnDelete(DeleteBehavior.Restrict);
         });
 

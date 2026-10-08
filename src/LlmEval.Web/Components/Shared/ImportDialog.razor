@@ -1,4 +1,5 @@
 @using System.Text.Json.Nodes
+@inject EvalService Svc
 @inject ImportService Import
 @inject Toaster Toasts
 @inject CurrentUser Me
@@ -109,6 +110,7 @@
                             }
                         </div>
                     }
+                    <CategoryInput Value="@_category" ValueChanged="OnCategoryChanged" Categories="_categories" />
                     <div class="field">
                         <label>@L["import.extraTags"]</label>
                         <input class="input" @bind="_extraTags" @bind:after="Recompute" placeholder="@L["import.extraTagsPh"]" />
@@ -129,7 +131,7 @@
                     @foreach (var it in _preview)
                     {
                         <div class="card" style="padding:12px 14px">
-                            <div class="row" style="gap:6px"><b class="grow ellipsis">@it.Title</b>@foreach (var t in it.Tags ?? []) { <span class="tag">@t</span> }</div>
+                            <div class="row" style="gap:6px"><b class="grow ellipsis">@it.Title</b>@if (it.Category is not null) { <span class="category-badge">@it.Category</span> }@foreach (var t in it.Tags ?? []) { <span class="tag">@t</span> }</div>
                             <div class="small muted clamp-3" style="white-space:pre-wrap;margin-top:4px">@it.Prompt</div>
                             @if (it.Data is not null) { <div class="small faint clamp-2 mono" style="margin-top:6px">📄 @it.Data</div> }
                             @if (it.ExpectedAnswer is not null) { <div class="small clamp-2" style="margin-top:6px;color:#a7f3d0">✓ @it.ExpectedAnswer</div> }
@@ -150,8 +152,8 @@
 @code {
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback<bool> OpenChanged { get; set; }
-    /// <summary>Called with the created test case ids and the tag they all share.</summary>
-    [Parameter] public EventCallback<(List<Guid> Ids, string? Tag)> OnImported { get; set; }
+    /// <summary>Called with the created test case ids and the category they all share.</summary>
+    [Parameter] public EventCallback<(List<Guid> Ids, string? Category)> OnImported { get; set; }
 
     private static readonly string[] Fields = ["prompt", "title", "data", "expected", "system", "tags"];
 
@@ -159,7 +161,8 @@
         "[{\"title\":\"…\",\"prompt\":\"…\",\"data\":\"…\",\"expectedAnswer\":\"…\",\"tags\":[\"…\"]}]\n" + L["import.pastePh"];
 
     private string _source = "file", _active = "prompt";
-    private string? _text, _fileName, _dataset, _splitKey, _extraTags;
+    private string? _text, _fileName, _dataset, _splitKey, _extraTags, _category;
+    private List<string> _categories = [];
     private int _offset, _length = 50;
     private List<HfSplit> _splits = [];
     private List<JsonObject>? _rows;
@@ -169,10 +172,13 @@
     private int _mappedCount, _skipped;
     private bool _busy, _wasOpen;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (Open && !_wasOpen)
         {
+            _wasOpen = true;
+            _category = null;
+            _categories = await Svc.GetCategoriesAsync();
             _rows = null;
             _text = _fileName = null;
             _preview = [];
@@ -229,10 +235,16 @@
     private List<string> ExtraTags() =>
         (_extraTags ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
+    private void OnCategoryChanged(string? category)
+    {
+        _category = category;
+        Recompute();
+    }
+
     private void Recompute()
     {
         if (_rows is null) return;
-        var (items, _) = ImportService.Map(_rows, _map, ExtraTags(), Me.User?.Id);
+        var (items, _) = ImportService.Map(_rows, _map, ExtraTags(), Me.User?.Id, _category);
         _mappedCount = items.Count;
         _skipped = _rows.Count - items.Count;
         _preview = items.Take(3).ToList();
@@ -245,6 +257,8 @@
             Toasts.Error(L["import.noRows"]);
             return;
         }
+        _category = _source == "hf" ? _dataset?.Split('/').Last() : _fileName is null ? L["testcases.importCategory"] : Path.GetFileNameWithoutExtension(_fileName);
+        if (_category?.Length > 120) _category = _category[..120];
         _rows = rows;
         _columns = ImportService.Columns(rows);
         _map = mapping ?? ImportService.GuessMapping(_columns);
@@ -333,11 +347,11 @@
         _busy = true;
         ImportPreview? res = null;
         var ok = await Toasts.Try(async () =>
-            res = await Import.ImportAsync(new ImportRequest(Rows: _rows, Mapping: _map, Tags: ExtraTags(), UserId: Me.User?.Id)));
+            res = await Import.ImportAsync(new ImportRequest(Rows: _rows, Mapping: _map, Tags: ExtraTags(), UserId: Me.User?.Id, Category: _category)));
         _busy = false;
         if (!ok) return;
         Toasts.Ok(L["import.done", res!.Created]);
         await OpenChanged.InvokeAsync(false);
-        await OnImported.InvokeAsync((res.CreatedIds ?? [], ExtraTags().FirstOrDefault()?.ToLowerInvariant()));
+        await OnImported.InvokeAsync((res.CreatedIds ?? [], EvalService.NormalizeCategory(_category)));
     }
 }

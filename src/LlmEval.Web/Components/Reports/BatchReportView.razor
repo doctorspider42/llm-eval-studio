@@ -13,6 +13,7 @@
         <span class="grow"></span>
         <a class="toggle @(O.Reveal ? "on" : "")" href="@Link(reveal: !O.Reveal)">👁 @T("report.toolbar.reveal")</a>
         <a class="toggle @(O.Comments ? "on" : "")" href="@Link(comments: !O.Comments)">💬 @T("report.toolbar.comments")</a>
+        <a class="toggle @(O.Summaries ? "on" : "")" href="@Link(summaries: !O.Summaries)">✦ @T("report.toolbar.summaries")</a>
         <a class="toggle @(O.Answers ? "on" : "")" href="@Link(answers: !O.Answers)">📄 @T("report.toolbar.answers")</a>
         <a class="toggle" href="@Link(lang: O.Lang == "pl" ? "en" : "pl")">🌐 @(O.Lang == "pl" ? "EN" : "PL")</a>
         <button onclick="window.print()">🖨 @T("report.toolbar.print")</button>
@@ -63,6 +64,15 @@
             }
             @if (!O.Reveal) { <p class="sub">🙈 @T("report.verdict.blind")</p> }
         </section>
+
+        @if (O.Summaries && R.AiSummary is { } summary)
+        {
+            <section class="verdict">
+                <div class="label">✦ @T("report.summary.title")</div>
+                <p style="white-space:pre-wrap">@summary.Overview</p>
+                <p class="sub">@F("report.summary.by", summary.JudgeName, I18n.Date(O.Lang, summary.CompletedAt ?? summary.CreatedAt))</p>
+            </section>
+        }
 
         @* ── ranking ── *@
         <section>
@@ -155,6 +165,19 @@
                         <pre class="prompt expected">@Cut(c.ExpectedAnswer, 700)</pre>
                     }
 
+                    @if (O.Summaries && R.AiSummary?.Cases.FirstOrDefault(x => x.TestCaseId == c.TestCaseId) is { } compact)
+                    {
+                        <div class="label">@F("report.summary.repetitions", compact.Repetitions)</div>
+                        <p style="white-space:pre-wrap">@compact.Text</p>
+                        <table class="answers">
+                            @foreach (var model in compact.Models)
+                            {
+                                <tr><td class="who"><b>@(c.Answers.FirstOrDefault(a => a.Alias == model.Alias)?.ModelName ?? F("candidate", model.Alias))</b></td><td style="white-space:pre-wrap">@model.Text</td></tr>
+                            }
+                        </table>
+                    }
+                    @if (!O.Summaries || O.Answers)
+                    {
                     <table class="answers">
                         @foreach (var a in c.Answers)
                         {
@@ -164,6 +187,7 @@
                                     <div class="muted small">@F("report.details.rep", a.Repetition)</div>
                                 </td>
                                 <td class="score">
+                                    @if (a.Status == ResultStatus.Cancelled) { <span>@T("status.cancelled")</span> }
                                     @if (a.Status == ResultStatus.Failed) { <span class="fail">✕ @T("report.details.failed")</span> }
                                     else if (a.AvgStars is null) { <span class="muted">@T("report.details.noRatings")</span> }
                                     else { var (bg, fg) = Heat(a.AvgStars); <span class="pill" style="background:@bg;color:@fg">@Stars(a.AvgStars) ★</span> }
@@ -187,6 +211,7 @@
                             </tr>
                         }
                     </table>
+                    }
                 </article>
             }
         </section>
@@ -194,6 +219,7 @@
         <section class="method">
             <h2>@T("report.method")</h2>
             <p>@T("report.method.text")</p>
+            @if (O.Summaries) { <p>@T("report.summary.method")</p> }
             @if (R.JudgeNames.Count > 0) { <p>@F("report.method.judges", string.Join(", ", R.JudgeNames))</p> }
         </section>
 
@@ -222,9 +248,10 @@
     private string Name(BatchModelStatDto m) => m.Model?.DisplayName ?? F("candidate", m.Alias);
     private string Cut(string s, int max) => s.Length <= max ? s : s[..max].TrimEnd() + T("report.details.truncated");
 
-    private string Link(bool? reveal = null, bool? comments = null, bool? answers = null, string? lang = null) =>
+    private string Link(bool? reveal = null, bool? comments = null, bool? answers = null, string? lang = null, bool? summaries = null) =>
         $"{BaseUrl}?lang={lang ?? O.Lang}&reveal={(reveal ?? O.Reveal).ToString().ToLowerInvariant()}" +
-        $"&comments={(comments ?? O.Comments).ToString().ToLowerInvariant()}&answers={(answers ?? O.Answers).ToString().ToLowerInvariant()}";
+        $"&comments={(summaries == true ? false : comments ?? O.Comments).ToString().ToLowerInvariant()}&answers={(answers ?? O.Answers).ToString().ToLowerInvariant()}" +
+        $"&summaries={(comments == true ? false : summaries ?? O.Summaries).ToString().ToLowerInvariant()}&summaryId={O.SummaryId}";
 
     // Sequential single-hue ramp (blue 100 → 550): magnitude, lighter = worse. Text flips to white on the dark steps.
     private static readonly string[] Ramp = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#1c5cab"];

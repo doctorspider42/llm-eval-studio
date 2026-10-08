@@ -55,5 +55,19 @@
   "testcases.picker.addProvider": "Dodaj providera",
   "testcases.picker.selected": "Wybrano:",
   "testcases.picker.selectAll": "Zaznacz wszystkie dostępne",
-  "testcases.picker.providerOff": "provider wyłączony"
+  "testcases.picker.providerOff": "provider wyłączony",
+  "testcases.category": "Kategoria",
+  "testcases.categoryPh": "Wybierz istniejącą lub wpisz nową kategorię…",
+  "testcases.categoryHint": "Jedna kategoria grupuje przypadki. Puste pole = bez kategorii.",
+  "testcases.allCategories": "Wszystkie kategorie",
+  "testcases.uncategorized": "Bez kategorii",
+  "testcases.setCategory": "Zmień kategorię",
+  "testcases.categorySelected": "Zmień kategorię dla {0} zaznaczonych przypadków.",
+  "testcases.importCategory": "Importowane",
+  "testcases.tagFilter": "Filtruj po tagu",
+  "testcases.searchTags": "Szukaj tagu…",
+  "testcases.clearTag": "Usuń filtr tagu",
+  "testcases.tagSearchHint": "Wpisz fragment nazwy, żeby znaleźć tag.",
+  "testcases.noTags": "Brak pasujących tagów.",
+  "testcases.moreTags": "Pokazano 20 tagów. Doprecyzuj wyszukiwanie."
 }

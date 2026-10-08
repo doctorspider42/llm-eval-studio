@@ -140,7 +140,6 @@ public class AnthropicClient(IHttpClientFactory httpFactory) : ILlmClient
             ["messages"] = new JsonArray(new JsonObject { ["role"] = "user", ["content"] = r.UserMessage })
         };
         if (!string.IsNullOrWhiteSpace(r.SystemPrompt)) body["system"] = r.SystemPrompt;
-        if (Type == ProviderType.OpenRouter) body["usage"] = new JsonObject { ["include"] = true };
         if (r.Model.Temperature is { } t) body["temperature"] = t;
 
         using var req = new HttpRequestMessage(HttpMethod.Post, HttpHelpers.Combine(BaseUrl(r.Provider), "messages"))

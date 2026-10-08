@@ -68,6 +68,7 @@ public class TestCase
     public string? Data { get; set; }
     /// <summary>Reference answer. Never sent to the evaluated models – only to judges (AI and human).</summary>
     public string? ExpectedAnswer { get; set; }
+    public string? Category { get; set; }
     public List<string> Tags { get; set; } = [];
     public Guid? CreatedById { get; set; }
     public User? CreatedBy { get; set; }
@@ -96,6 +97,7 @@ public class Iteration
     public User? CreatedBy { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public List<IterationResult> Results { get; set; } = [];
+    public bool AutoJudgeSuppressed { get; set; }
     public List<JudgeRun> JudgeRuns { get; set; } = [];
 }
 
@@ -104,7 +106,8 @@ public enum ResultStatus
     Pending,
     Running,
     Completed,
-    Failed
+    Failed,
+    Cancelled
 }
 
 public class IterationResult
@@ -121,6 +124,7 @@ public class IterationResult
     public string? Error { get; set; }
     public int? InputTokens { get; set; }
     public int? OutputTokens { get; set; }
+    public decimal? CostUsd { get; set; }
     public long? LatencyMs { get; set; }
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
@@ -155,8 +159,29 @@ public class JudgeRun
     public string? Error { get; set; }
     /// <summary>Raw judge output, kept for debugging parse problems.</summary>
     public string? RawOutput { get; set; }
+    public decimal? CostUsd { get; set; }
     public long? LatencyMs { get; set; }
     public Guid? RequestedById { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
+/// <summary>Saved AI synthesis of all repetitions in a series, with background generation state.</summary>
+public class BatchSummaryRun
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid BatchId { get; set; }
+    public Batch Batch { get; set; } = null!;
+    public Guid ModelId { get; set; }
+    public LlmModel Model { get; set; } = null!;
+    public required string Language { get; set; }
+    public required string SourceHash { get; set; }
+    public ResultStatus Status { get; set; }
+    public string? Overview { get; set; }
+    public string? CasesJson { get; set; }
+    public string? Error { get; set; }
+    public int CompletedCases { get; set; }
+    public int TotalCases { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedAt { get; set; }
 }

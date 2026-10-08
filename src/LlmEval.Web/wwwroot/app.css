@@ -1,3 +1,9 @@
+.tag-filter { position: relative; }
+.tag-filter > summary { list-style: none; cursor: pointer; }
+.tag-filter > summary::-webkit-details-marker { display: none; }
+.tag-filter-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 40; width: min(320px, 80vw); max-height: 300px; overflow-y: auto; padding: 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface-solid); box-shadow: 0 12px 32px rgba(0,0,0,.35); gap: 10px; }
+.category-badge { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; overflow-wrap: anywhere; padding: 3px 8px; border-radius: 6px; background: var(--accent-soft); color: var(--text); border: 1px solid var(--border-strong); font-size: 12px; }
+
 /* ───────────────────────── tokens ───────────────────────── */
 :root,
 [data-theme="aurora"] {
@@ -587,3 +593,5 @@ button.chip:hover { border-color: var(--border-strong); color: var(--text); }
 .expected-card .card-title, .expected-card summary svg { color: #a7f3d0; }
 .active-field { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .lang-switch button { font-weight: 600; font-size: 12px; letter-spacing: .04em; padding: 5px 10px; }
+
+.badge-cancelled { color: var(--muted); background: var(--surface); }

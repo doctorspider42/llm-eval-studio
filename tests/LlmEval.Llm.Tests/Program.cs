@@ -3,6 +3,14 @@ using System.Text.Json.Nodes;
 using LlmEval.Web.Data;
 using LlmEval.Web.Llm;
 
+// Child process fixture for the real Claude CLI transport.
+if (args.Contains("--output-format"))
+{
+    await Console.In.ReadToEndAsync();
+    Console.WriteLine("""{"result":"cli answer","usage":{"input_tokens":2,"cache_read_input_tokens":3,"cache_creation_input_tokens":4,"output_tokens":5},"total_cost_usd":0.00098765}""");
+    return;
+}
+
 // Run with: dotnet run --project tests/LlmEval.Llm.Tests
 // Fake HTTP transport: no API credentials, paid requests or database required.
 const string completion = """
@@ -30,14 +38,17 @@ try
         Check(body["messages"]![1]!["content"]!.GetValue<string>() == "question", "user prompt");
         Check(body["temperature"]!.GetValue<double>() == 0.25, "temperature");
         Check(body["max_tokens"]!.GetValue<int>() == 123 && body["max_completion_tokens"] is null, "OpenRouter token limit");
-        return Json(completion);
+        Check(body["usage"]?["include"]?.GetValue<bool>() == true, "OpenRouter cost accounting requested");
+        var reply = JsonNode.Parse(completion)!;
+        reply["usage"]!["cost"] = 0.00012345m;
+        return Json(reply.ToJsonString());
     });
     var router = new OpenRouterClient(transport);
     var openAi = new OpenAiClient(transport);
     var factory = new LlmClientFactory([router, openAi]);
     Check(ReferenceEquals(factory.For(ProviderType.OpenRouter), router), "provider dispatch");
     var response = await router.CompleteAsync(new(provider, model, "instructions", "question"), default);
-    Check(response == new LlmResponse("answer", 12, 7), "answer and token usage");
+    Check(response == new LlmResponse("answer", 12, 7, 0.00012345m), "answer and token usage");
     Console.WriteLine("PASS: OpenRouter completion, authentication, parameters, usage and dispatch");
 
     provider.ApiKey = " ";
@@ -63,7 +74,7 @@ try
         return Json("""{"choices":[{"message":{"content":"answer"}}]}""");
     };
     response = await router.CompleteAsync(new(provider, model, null, "question"), default);
-    Check(response.InputTokens is null && response.OutputTokens is null, "optional usage");
+    Check(response.InputTokens is null && response.OutputTokens is null && response.CostUsd is null, "optional usage");
     Console.WriteLine("PASS: custom completion URL and optional fields");
 
     transport.Respond = _ => Task.FromResult(Json("""{"error":{"message":"insufficient credits"}}"""));
@@ -90,6 +101,16 @@ try
     };
     await openAi.CompleteAsync(new(provider, model, "instructions", "question"), default);
     Console.WriteLine("PASS: OpenAI compatibility regression");
+    provider = new Provider { Name = "Router", Type = ProviderType.OpenRouter, ApiKey = "test" };
+    transport.Respond = _ => Task.FromResult(Json("""{"choices":[{"message":{"content":"free"}}],"usage":{"cost":0}}"""));
+    response = await router.CompleteAsync(new(provider, model, null, "question"), default);
+    Check(response.CostUsd == 0m, "zero cost preserved separately from missing cost");
+    Console.WriteLine("PASS: free responses preserve zero cost");
+    var claude = new ClaudeCliClient();
+    var cliProvider = new Provider { Name = "Fake CLI", Type = ProviderType.ClaudeCli, CliPath = Environment.ProcessPath };
+    response = await claude.CompleteAsync(new(cliProvider, model, null, "question"), default);
+    Check(response == new LlmResponse("cli answer", 9, 5, 0.00098765m), "Claude CLI cost and cached token usage");
+    Console.WriteLine("PASS: Claude CLI provider-reported cost and token usage");
 }
 finally
 {
