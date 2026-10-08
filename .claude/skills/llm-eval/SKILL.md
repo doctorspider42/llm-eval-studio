@@ -50,6 +50,7 @@ Full OpenAPI spec: `$BASE/openapi/v1.json` (human docs at `$BASE/scalar`). Enums
 | `GET /api/batches` · `GET /api/batches/{id}?reveal=false&userId=` | series list / overview: per-model stats (blind aliases `Kandydat A…`), test case × repetition matrix |
 | `GET /api/batches/{id}/wait?timeoutSeconds=600` | long-poll until all answers and judge runs are done |
 | `POST /api/batches/{id}/judge` `{judgeModelIds?, onlyUnjudged=true}` | AI-judge the whole series; unfinished iterations get judged automatically when done |
+| `GET /api/batches/{id}/report?lang=en&reveal=true&comments=true&answers=false` | print-ready HTML report of the series (verdict, ranking, chart, heat map, comments); give the user the `/reports/batches/{id}?print=true` link to save it as PDF |
 | `GET /api/batches/{id}/next-unrated?userId=&after=` | next iteration of the series this user hasn't rated (204 = none) |
 
 A result looks like:

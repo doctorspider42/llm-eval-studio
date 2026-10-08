@@ -3,10 +3,10 @@
 @inject CurrentUser Me
 @inject IJSRuntime JS
 
-<Modal Open="Open" OpenChanged="OpenChanged" Title="Odpal iterację" Icon="play" Wide>
+<Modal Open="Open" OpenChanged="OpenChanged" Title="@L["testcases.case.runIteration"]" Icon="play" Wide>
     <ChildContent>
         <div class="muted" style="margin-top:-8px;margin-bottom:16px">
-            Wybierz modele. Kolejność w wynikach zostanie <b>wylosowana</b>, a nazwy ukryte – zobaczysz „Model 1, Model 2…”.
+            @((MarkupString)L["testcases.run.intro"])
         </div>
         @if (_models is null)
         {
@@ -16,15 +16,15 @@
         {
             <ModelPicker Models="_models" Selected="_selected" SelectionChanged="StateHasChanged" />
             <div class="field" style="margin-top:18px">
-                <label>Notatka (opcjonalnie)</label>
-                <input class="input" @bind="_note" placeholder="np. po zmianie promptu na bardziej konkretny" />
+                <label>@L["testcases.run.note"] (@L["common.optional"])</label>
+                <input class="input" @bind="_note" placeholder="@L["testcases.run.notePh"]" />
             </div>
         }
     </ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">@L["common.cancel"]</button>
         <button class="btn btn-primary" disabled="@(_selected.Count == 0 || _running)" @onclick="Run">
-            <Icon Name="@(_running ? "loader" : "zap")" Class="@(_running ? "spin" : null)" /> Odpal na @_selected.Count @(_selected.Count == 1 ? "modelu" : "modelach")
+            <Icon Name="@(_running ? "loader" : "zap")" Class="@(_running ? "spin" : null)" /> @(_selected.Count == 1 ? L["testcases.run.goOne", _selected.Count] : L["testcases.run.goMany", _selected.Count])
         </button>
     </Footer>
 </Modal>

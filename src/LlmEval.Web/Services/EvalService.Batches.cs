@@ -8,36 +8,37 @@ public partial class EvalService
 {
     private const int MaxBatchCalls = 3000;
 
-    public static string Alias(int index) => $"Kandydat {(char)('A' + index % 26)}{(index >= 26 ? (index / 26).ToString() : "")}";
+    /// <summary>Blind alias within a series: "A", "B"… (UI renders it as "Candidate A").</summary>
+    public static string Alias(int index) => $"{(char)('A' + index % 26)}{(index >= 26 ? (index / 26).ToString() : "")}";
 
     public async Task<BatchDto> CreateBatchAsync(CreateBatchRequest req, CancellationToken ct = default)
     {
         var testCaseIds = (req.TestCaseIds ?? []).Distinct().ToList();
         var modelIds = (req.ModelIds ?? []).Distinct().ToList();
-        if (testCaseIds.Count == 0) throw EvalException.Invalid("Wybierz przynajmniej jeden przypadek testowy");
-        if (modelIds.Count == 0) throw EvalException.Invalid("Wybierz przynajmniej jeden model");
-        if (req.Repetitions is < 1 or > 20) throw EvalException.Invalid("Powtórzenia: 1–20");
+        if (testCaseIds.Count == 0) throw EvalException.Invalid("errors.selectTestCase");
+        if (modelIds.Count == 0) throw EvalException.Invalid("errors.selectModel");
+        if (req.Repetitions is < 1 or > 20) throw EvalException.Invalid("errors.repetitionsRange");
         var calls = testCaseIds.Count * modelIds.Count * req.Repetitions;
-        if (calls > MaxBatchCalls) throw EvalException.Invalid($"To byłoby {calls} wywołań – limit to {MaxBatchCalls}. Podziel serię.");
+        if (calls > MaxBatchCalls) throw EvalException.Invalid("errors.tooManyCalls", calls, MaxBatchCalls);
 
         Guid batchId;
         var queueOrder = new List<(int Rep, Guid ResultId)>();
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
         {
             var cases = await db.TestCases.Where(t => testCaseIds.Contains(t.Id)).OrderBy(t => t.Title).ToListAsync(ct);
-            if (cases.Count != testCaseIds.Count) throw EvalException.Invalid("Część przypadków testowych nie istnieje");
+            if (cases.Count != testCaseIds.Count) throw EvalException.Invalid("errors.someTestCasesMissing");
 
             var models = await db.Models.Include(m => m.Provider).Where(m => modelIds.Contains(m.Id)).ToListAsync(ct);
-            if (models.Count != modelIds.Count) throw EvalException.Invalid("Część modeli nie istnieje");
+            if (models.Count != modelIds.Count) throw EvalException.Invalid("errors.someModelsMissing");
             var disabled = models.Where(m => !m.Enabled || !m.Provider.Enabled).Select(m => m.DisplayName).ToList();
-            if (disabled.Count > 0) throw EvalException.Invalid($"Wyłączone modele: {string.Join(", ", disabled)}");
+            if (disabled.Count > 0) throw EvalException.Invalid("errors.disabledModels", string.Join(", ", disabled));
 
             var judgeIds = (req.JudgeModelIds ?? []).Distinct().ToList();
             if (req.AutoJudge) await ResolveJudgesAsync(db, judgeIds, ct); // fail fast if there's nobody to judge
 
             var batch = new Batch
             {
-                Name = Blank(req.Name) ?? $"Seria {DateTimeOffset.Now:yyyy-MM-dd HH:mm}",
+                Name = Blank(req.Name) ?? $"Series {DateTimeOffset.Now:yyyy-MM-dd HH:mm}",
                 Note = Blank(req.Note),
                 Repetitions = req.Repetitions,
                 ModelIds = models.OrderBy(_ => Random.Shared.Next()).Select(m => m.Id).ToList(),
@@ -111,7 +112,7 @@ public partial class EvalService
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var summary = await BatchSummaries(db.Batches.Where(b => b.Id == id)).FirstOrDefaultAsync(ct)
-                      ?? throw EvalException.NotFound("Seria");
+                      ?? throw EvalException.NotFound("series");
         var batch = await db.Batches.AsNoTracking().FirstAsync(b => b.Id == id, ct);
 
         // Project only what the overview needs – no answer texts.
@@ -211,7 +212,7 @@ public partial class EvalService
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var batch = await db.Batches.FirstOrDefaultAsync(b => b.Id == batchId, ct) ?? throw EvalException.NotFound("Seria");
+            var batch = await db.Batches.FirstOrDefaultAsync(b => b.Id == batchId, ct) ?? throw EvalException.NotFound("series");
             var judges = await ResolveJudgesAsync(db, req.JudgeModelIds, ct);
             judgeNames = judges.Select(j => j.DisplayName).ToList();
 
@@ -273,7 +274,7 @@ public partial class EvalService
     public async Task SetBatchAutoJudgeAsync(Guid batchId, bool autoJudge, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var batch = await db.Batches.FindAsync([batchId], ct) ?? throw EvalException.NotFound("Seria");
+        var batch = await db.Batches.FindAsync([batchId], ct) ?? throw EvalException.NotFound("series");
         batch.AutoJudge = autoJudge;
         await db.SaveChangesAsync(ct);
         events.Raise();
@@ -283,7 +284,7 @@ public partial class EvalService
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var n = await db.Batches.Where(b => b.Id == id).ExecuteDeleteAsync(ct);
-        if (n == 0) throw EvalException.NotFound("Seria");
+        if (n == 0) throw EvalException.NotFound("series");
         events.Raise();
     }
 

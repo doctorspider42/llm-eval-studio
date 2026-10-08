@@ -30,6 +30,8 @@
 | 🧩 **5 providers** | OpenAI API · Anthropic API · Ollama · **Claude Code CLI** · **Codex CLI** (use your subscription, no API key needed). |
 | 📥 **Import** | JSON / JSONL, or rows straight from Hugging Face with `{{column}}` templates. Presets for IFEval, GSM8K and TruthfulQA. |
 | 🤖 **Agent-ready API** | Everything in the UI is also available over REST, with OpenAPI + Scalar docs and a ready-made [Claude skill](.claude/skills/llm-eval/SKILL.md). |
+| 📄 **PDF reports** | One click turns a series into a print-ready report (verdict, ranking, chart, per-case heat map, judge comments). Save it as PDF straight from the browser. |
+| 🌍 **PL / EN** | Full Polish and English UI, switchable in the top bar. Translations are plain JSON files, so adding a language is easy. |
 | 🌙 **Dark UI** | 5 dark themes, live updates, glassmorphism. No admin panel from 2003. |
 
 <table>
@@ -55,7 +57,7 @@ dotnet run --project src/LlmEval.AppHost
 
 Then open **http://localhost:5106**. The Aspire dashboard link is printed in the console.
 
-The database is migrated and seeded on first start with one user (`admin`), 5 providers and 16 sample test cases (in Polish).
+The database is migrated and seeded on first start with one user (`admin`), 5 providers and 16 sample test cases (the sample content is in Polish; the UI follows your browser language and can be switched to PL / EN).
 
 **Models to test.** Any of these is enough:
 - 🟣 `claude` CLI logged in (Claude Code) — seeded as Haiku / Sonnet / Opus
@@ -92,6 +94,24 @@ curl "localhost:5106/api/batches/{id}/wait?timeoutSeconds=900"
 
 Or open Claude Code in this repo and say *"rate all unrated iterations in LLM Eval"*. The [skill](.claude/skills/llm-eval/SKILL.md) covers the rest. Full API docs are at **`/scalar`**.
 
+## 📄 Reports
+
+On a series page, **Export report** opens a standalone A4 document:
+- a verdict (winner, margin, consistency)
+- the model ranking and a bar chart of human vs AI averages
+- a heat map of test cases × models
+- every test case with its prompt, expected answer, scores and judge comments
+
+<p align="center"><img src="docs/screenshots/report.jpg" alt="Series report" width="80%"></p>
+
+📎 **[See a sample PDF report](docs/sample-report.pdf)**, generated from a real run of Haiku vs Sonnet vs Opus.
+
+Model names, comments and full answers can each be turned on or off. The print dialog opens on its own, so *Save as PDF* is one click. The same report is available from the API: `GET /api/batches/{id}/report?lang=en&reveal=true`.
+
+## 🌍 Translations
+
+The UI ships in 🇵🇱 Polish and 🇬🇧 English. Strings live in `src/LlmEval.Web/Resources/i18n/{pl,en}/*.json`, one flat `"key": "text"` map per area. To add a language, copy the `en` folder, translate it and add the language code to `I18n.Languages`. Missing keys are logged at startup in Development.
+
 ## 📥 Bring your own data
 
 **Import** on the test case list accepts:
@@ -112,13 +132,6 @@ src/LlmEval.Web
   Services/    EvalService (shared by UI and API), runners, AI judge, import
   Components/  Blazor UI
 ```
-
-## ⚠️ Honest notes
-
-- **Internal tool:** no authentication. You pick a user from a list. Don't expose it to the internet.
-- **The UI is in Polish 🇵🇱** for now. The code, API and this README are in English.
-- **Tested end to end** with the Claude Code CLI (generation, series, AI judge) and Hugging Face import. The OpenAI, Anthropic, Ollama and Codex clients follow the official APIs but haven't been run live yet. Issues and PRs are welcome.
-- API keys stored on the *Providers* page sit in the database **in plain text**. Prefer environment variables.
 
 ## 📄 License
 

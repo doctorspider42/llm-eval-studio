@@ -1,0 +1,22 @@
+{
+  "users.title": "Użytkownicy",
+  "users.subtitle": "Bez haseł – appka wewnętrzna. Boty (LLM-judge przez API) oznacz jako „bot”.",
+  "users.add": "Dodaj użytkownika",
+  "users.badge.aiJudge": "sędzia AI",
+  "users.badge.bot": "bot",
+  "users.badge.you": "to Ty",
+  "users.noEmail": "brak e-maila",
+  "users.since": "od {0}",
+  "users.apiId": "ID do API",
+  "users.switchTo": "Przełącz się na tego użytkownika",
+  "users.modal.new": "Nowy użytkownik",
+  "users.modal.edit": "Edytuj użytkownika",
+  "users.field.name": "Nazwa",
+  "users.field.namePlaceholder": "Imię i nazwisko albo np. Claude Judge",
+  "users.field.email": "E-mail (opcjonalnie)",
+  "users.field.isBot": "To bot / LLM-judge",
+  "users.delete.title": "Usunąć użytkownika?",
+  "users.delete.before": "Usunięcie",
+  "users.delete.after": "skasuje też wszystkie jego oceny.",
+  "users.deleted": "Usunięto {0}"
+}

@@ -21,6 +21,7 @@ builder.Services.AddHttpClient("llm", c => c.Timeout = TimeSpan.FromMinutes(10))
 #pragma warning restore EXTEXP0001
 builder.Services.AddHttpClient("hf", c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<ImportService>();
+builder.Services.AddSingleton<ReportService>();
 builder.Services.AddSingleton<ILlmClient, OpenAiClient>();
 builder.Services.AddSingleton<ILlmClient, AnthropicClient>();
 builder.Services.AddSingleton<ILlmClient, OllamaClient>();
@@ -36,6 +37,7 @@ builder.Services.AddHostedService<IterationRunner>();
 builder.Services.AddHostedService<JudgeRunner>();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<Toaster>();
+builder.Services.AddScoped<Localizer>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -53,6 +55,10 @@ var app = builder.Build();
 
 await DbSeeder.InitializeAsync(app.Services);
 
+if (app.Environment.IsDevelopment())
+    foreach (var missing in I18n.MissingKeys())
+        app.Logger.LogWarning("Missing translation {Key}", missing);
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -66,6 +72,7 @@ app.MapStaticAssets();
 app.MapOpenApi();
 app.MapScalarApiReference(o => o.WithTitle("LLM Eval API").WithTheme(ScalarTheme.DeepSpace));
 app.MapEvalApi();
+app.MapReports();
 app.MapDefaultEndpoints();
 
 app.MapRazorComponents<App>()

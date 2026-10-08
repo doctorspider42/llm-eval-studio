@@ -14,24 +14,24 @@
             <span class="brand-logo"><Icon Name="sparkles" Size="18" /></span>
             <span>
                 <div class="brand-name">LLM Eval</div>
-                <div class="brand-sub">ślepe testy modeli</div>
+                <div class="brand-sub">@L["layout.brandSub"]</div>
             </span>
         </a>
         <nav class="nav">
-            <div class="nav-label">Ewaluacja</div>
-            <NavLink href="" Match="NavLinkMatch.All"><Icon Name="dashboard" /> Dashboard</NavLink>
-            <NavLink href="test-cases"><Icon Name="flask" /> Przypadki testowe</NavLink>
-            <NavLink href="batches"><Icon Name="list-checks" /> Serie</NavLink>
-            <NavLink href="iterations"><Icon Name="layers" /> Iteracje</NavLink>
-            <div class="nav-label">Konfiguracja</div>
-            <NavLink href="providers"><Icon Name="cpu" /> Providerzy i modele</NavLink>
-            <NavLink href="users"><Icon Name="users" /> Użytkownicy</NavLink>
-            <NavLink href="api-info"><Icon Name="code" /> API &amp; skill</NavLink>
+            <div class="nav-label">@L["layout.nav.evaluation"]</div>
+            <NavLink href="" Match="NavLinkMatch.All"><Icon Name="dashboard" /> @L["layout.nav.dashboard"]</NavLink>
+            <NavLink href="test-cases"><Icon Name="flask" /> @L["layout.nav.testCases"]</NavLink>
+            <NavLink href="batches"><Icon Name="list-checks" /> @L["layout.nav.batches"]</NavLink>
+            <NavLink href="iterations"><Icon Name="layers" /> @L["layout.nav.iterations"]</NavLink>
+            <div class="nav-label">@L["layout.nav.config"]</div>
+            <NavLink href="providers"><Icon Name="cpu" /> @L["layout.nav.providers"]</NavLink>
+            <NavLink href="users"><Icon Name="users" /> @L["layout.nav.users"]</NavLink>
+            <NavLink href="api-info"><Icon Name="code" /> @L["layout.nav.api"]</NavLink>
         </nav>
         <div class="sidebar-foot">
             <div class="card" style="padding:14px">
-                <div class="row small muted"><Icon Name="eye-off" Size="14" /> Tryb ślepy domyślnie</div>
-                <div class="small faint" style="margin-top:4px">Modele widzisz jako „Model 1, 2…” dopóki nie klikniesz <b>Odkryj</b>.</div>
+                <div class="row small muted"><Icon Name="eye-off" Size="14" /> @L["layout.blindTitle"]</div>
+                <div class="small faint" style="margin-top:4px">@((MarkupString)L["layout.blindHint"])</div>
             </div>
         </div>
     </aside>
@@ -40,8 +40,15 @@
         <header class="topbar">
             <div class="spacer"></div>
 
+            <div class="seg lang-switch" title="@L["lang.label"]">
+                @foreach (var lang in I18n.Languages)
+                {
+                    <button class="@(L.Lang == lang ? "on" : "")" @onclick="() => SwitchLang(lang)">@lang.ToUpperInvariant()</button>
+                }
+            </div>
+
             <div class="dropdown">
-                <button class="btn btn-ghost btn-icon" title="Motyw" @onclick="() => _themeOpen = !_themeOpen"><Icon Name="palette" /></button>
+                <button class="btn btn-ghost btn-icon" title="@L["layout.theme"]" @onclick="() => _themeOpen = !_themeOpen"><Icon Name="palette" /></button>
                 @if (_themeOpen)
                 {
                     <div class="click-catcher" @onclick="() => _themeOpen = false"></div>
@@ -70,7 +77,7 @@
                     {
                         <div class="click-catcher" @onclick="() => _userOpen = false"></div>
                         <div class="dropdown-menu">
-                            <div class="small faint" style="padding:6px 10px">Przełącz użytkownika</div>
+                            <div class="small faint" style="padding:6px 10px">@L["layout.switchUser"]</div>
                             @foreach (var other in _users.Where(x => !x.IsAiJudge))
                             {
                                 <button class="dropdown-item @(other.Id == u.Id ? "on" : "")" @onclick="() => Pick(other)">
@@ -80,8 +87,8 @@
                                 </button>
                             }
                             <div class="dropdown-sep"></div>
-                            <button class="dropdown-item" @onclick='() => { _userOpen = false; Nav.NavigateTo("users"); }'><Icon Name="users" /> Zarządzaj użytkownikami</button>
-                            <button class="dropdown-item" @onclick="Logout"><Icon Name="logout" /> Wyloguj (wybierz ponownie)</button>
+                            <button class="dropdown-item" @onclick='() => { _userOpen = false; Nav.NavigateTo("users"); }'><Icon Name="users" /> @L["layout.manageUsers"]</button>
+                            <button class="dropdown-item" @onclick="Logout"><Icon Name="logout" /> @L["layout.logout"]</button>
                         </div>
                     }
                 </div>
@@ -102,8 +109,8 @@
     <div class="splash">
         <div class="splash-card">
             <span class="brand-logo" style="width:64px;height:64px;border-radius:18px;margin:0 auto"><Icon Name="sparkles" Size="30" /></span>
-            <h1 class="gradient-text">Kim jesteś?</h1>
-            <div class="muted">Wybierz użytkownika – oceny będą zapisywane na jego konto. Bez haseł, jesteśmy wśród swoich.</div>
+            <h1 class="gradient-text">@L["layout.splash.title"]</h1>
+            <div class="muted">@L["layout.splash.subtitle"]</div>
 
             <div class="user-grid">
                 @foreach (var cand in _users.Where(x => !x.IsAiJudge))
@@ -111,15 +118,15 @@
                     <div class="card card-hover user-tile" @onclick="() => Pick(cand)">
                         <Avatar Name="@cand.Name" Hue="cand.AvatarHue" IsBot="cand.IsBot" Size="52" />
                         <div style="font-weight:600">@cand.Name</div>
-                        <div class="small faint ellipsis" style="max-width:100%">@(cand.IsBot ? "bot / LLM judge" : cand.Email ?? "człowiek")</div>
+                        <div class="small faint ellipsis" style="max-width:100%">@(cand.IsBot ? L["layout.splash.bot"] : cand.Email ?? L["layout.splash.human"])</div>
                     </div>
                 }
             </div>
 
             <div class="row" style="margin-top:22px">
-                <input class="input grow" placeholder="…albo dodaj siebie: imię i nazwisko" @bind="_newName" @bind:event="oninput"
+                <input class="input grow" placeholder="@L["layout.splash.addPlaceholder"]" @bind="_newName" @bind:event="oninput"
                        @onkeydown="@(async e => { if (e.Key == "Enter") await CreateAndPick(); })" />
-                <button class="btn btn-primary" disabled="@string.IsNullOrWhiteSpace(_newName)" @onclick="CreateAndPick"><Icon Name="plus" /> Dodaj</button>
+                <button class="btn btn-primary" disabled="@string.IsNullOrWhiteSpace(_newName)" @onclick="CreateAndPick"><Icon Name="plus" /> @L["common.add"]</button>
             </div>
         </div>
     </div>
@@ -136,8 +143,8 @@
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    Wystąpił nieobsłużony błąd.
-    <a href="." class="reload">Przeładuj</a>
+    @L["layout.error.unhandled"]
+    <a href="." class="reload">@L["layout.error.reload"]</a>
     <span class="dismiss">🗙</span>
 </div>
 
@@ -155,7 +162,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender) await Me.InitAsync();
+        if (firstRender)
+        {
+            await L.InitAsync();
+            await Me.InitAsync();
+        }
     }
 
     private async Task ToggleUserMenu()
@@ -168,7 +179,7 @@
     {
         _userOpen = false;
         await Me.SetUserAsync(u);
-        Toasts.Ok($"Cześć, {u.Name}!");
+        Toasts.Ok(L["layout.hello", u.Name]);
     }
 
     private async Task Logout()
@@ -194,6 +205,13 @@
             _users = await Svc.GetUsersAsync();
             await Pick(created!);
         }
+    }
+
+    private async Task SwitchLang(string lang)
+    {
+        if (lang == L.Lang) return;
+        await L.SetAsync(lang);
+        Nav.NavigateTo(Nav.Uri, forceLoad: true); // simplest way to re-render every component in the new language
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);

@@ -3,11 +3,10 @@
 @inject CurrentUser Me
 @inject IJSRuntime JS
 
-<Modal Open="Open" OpenChanged="OpenChanged" Title="Nowa seria" Icon="list-checks" Wide>
+<Modal Open="Open" OpenChanged="OpenChanged" Title="@L["batch.new"]" Icon="list-checks" Wide>
     <ChildContent>
         <div class="muted" style="margin-top:-8px;margin-bottom:18px">
-            Seria odpala wybrane modele na wielu przypadkach naraz, każdy przypadek <b>N razy</b>.
-            Każde powtórzenie to osobna, ślepa iteracja – a całość oceniasz i porównujesz w jednym miejscu.
+            @((MarkupString)L["batch.dialog.intro"])
         </div>
 
         @if (_cases is null || _models is null)
@@ -21,18 +20,18 @@
                 <section>
                     <div class="row" style="margin-bottom:10px">
                         <span class="section-num">1</span>
-                        <b class="grow">Przypadki testowe <span class="faint" style="font-weight:400">· @_caseSel.Count z @_cases.Count</span></b>
-                        <button class="btn btn-sm btn-ghost" @onclick="SelectVisible">Zaznacz widoczne</button>
-                        <button class="btn btn-sm btn-ghost" @onclick="() => _caseSel.Clear()">Wyczyść</button>
+                        <b class="grow">@L["batch.dialog.cases"] <span class="faint" style="font-weight:400">@L["batch.dialog.casesCount", _caseSel.Count, _cases.Count]</span></b>
+                        <button class="btn btn-sm btn-ghost" @onclick="SelectVisible">@L["batch.dialog.selectVisible"]</button>
+                        <button class="btn btn-sm btn-ghost" @onclick="() => _caseSel.Clear()">@L["common.clear"]</button>
                     </div>
                     <div class="row wrap" style="gap:6px;margin-bottom:10px">
                         <div class="search" style="width:240px">
                             <Icon Name="search" />
-                            <input class="input" style="height:32px;padding-top:4px;padding-bottom:4px" placeholder="Filtruj…" @bind="_filter" @bind:event="oninput" />
+                            <input class="input" style="height:32px;padding-top:4px;padding-bottom:4px" placeholder="@L["batch.dialog.filter"]" @bind="_filter" @bind:event="oninput" />
                         </div>
                         @foreach (var tag in _cases.SelectMany(c => c.Tags).Distinct().Order())
                         {
-                            <button class="chip @(_tagFilter == tag ? "on" : "")" title="Pokaż tylko ten tag" @onclick="() => _tagFilter = _tagFilter == tag ? null : tag">@tag</button>
+                            <button class="chip @(_tagFilter == tag ? "on" : "")" title="@L["batch.dialog.tagOnly"]" @onclick="() => _tagFilter = _tagFilter == tag ? null : tag">@tag</button>
                         }
                     </div>
                     <div class="picker-list">
@@ -45,7 +44,7 @@
                                 @foreach (var tag in c.Tags.Take(3)) { <span class="tag">@tag</span> }
                             </div>
                         }
-                        @if (!Visible.Any()) { <div class="small faint" style="padding:14px">Nic nie pasuje do filtra.</div> }
+                        @if (!Visible.Any()) { <div class="small faint" style="padding:14px">@L["batch.dialog.noMatch"]</div> }
                     </div>
                 </section>
 
@@ -53,8 +52,8 @@
                 <section>
                     <div class="row" style="margin-bottom:10px">
                         <span class="section-num">2</span>
-                        <b>Modele</b>
-                        <span class="small faint">– w każdej iteracji kolejność będzie losowana</span>
+                        <b>@L["batch.dialog.models"]</b>
+                        <span class="small faint">@L["batch.dialog.modelsHint"]</span>
                     </div>
                     <ModelPicker Models="_models" Selected="_modelSel" SelectionChanged="StateHasChanged" />
                 </section>
@@ -63,15 +62,15 @@
                 <section>
                     <div class="row" style="margin-bottom:12px">
                         <span class="section-num">3</span>
-                        <b>Ustawienia</b>
+                        <b>@L["batch.dialog.settings"]</b>
                     </div>
                     <div class="grid" style="grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:end">
                         <div class="field">
-                            <label>Nazwa serii</label>
+                            <label>@L["batch.dialog.name"]</label>
                             <input class="input" @bind="_name" placeholder="@DefaultName" />
                         </div>
                         <div class="field">
-                            <label>Powtórzenia każdego przypadku</label>
+                            <label>@L["batch.dialog.reps"]</label>
                             <div class="stepper">
                                 <button @onclick="() => _reps = Math.Max(1, _reps - 1)">−</button>
                                 <span>@_reps</span>
@@ -83,14 +82,14 @@
                     <div class="card" style="margin-top:14px;padding:14px 16px">
                         <label class="switch">
                             <input type="checkbox" @bind="_autoJudge" /><span class="track"></span>
-                            <span><b style="color:var(--text)">Auto-sędzia</b> – każda iteracja zostanie oceniona przez AI, gdy tylko modele skończą</span>
+                            <span><b style="color:var(--text)">@L["batch.dialog.autoJudge"]</b> @L["batch.dialog.autoJudgeHint"]</span>
                         </label>
                         @if (_autoJudge)
                         {
                             <div class="row wrap" style="gap:6px;margin-top:12px">
                                 @if (_judges.Count == 0)
                                 {
-                                    <span class="small" style="color:var(--warn)">Brak sędziów – oznacz model jako „Sędzia AI” na stronie providerów.</span>
+                                    <span class="small" style="color:var(--warn)">@(L["batch.noJudges"]).</span>
                                 }
                                 @foreach (var j in _judges)
                                 {
@@ -104,22 +103,22 @@
                 </section>
 
                 <div class="calc">
-                    <span><b>@_caseSel.Count</b> <span class="faint">przypadków</span></span><span class="faint">×</span>
-                    <span><b>@_modelSel.Count</b> <span class="faint">modeli</span></span><span class="faint">×</span>
-                    <span><b>@_reps</b> <span class="faint">powt.</span></span><span class="faint">=</span>
-                    <span class="eq gradient-text">@Calls</span> <span class="faint">odpowiedzi w @(_caseSel.Count * _reps) iteracjach</span>
+                    <span><b>@_caseSel.Count</b> <span class="faint">@L["batch.calc.cases"]</span></span><span class="faint">×</span>
+                    <span><b>@_modelSel.Count</b> <span class="faint">@L["batch.calc.models"]</span></span><span class="faint">×</span>
+                    <span><b>@_reps</b> <span class="faint">@L["batch.calc.reps"]</span></span><span class="faint">=</span>
+                    <span class="eq gradient-text">@Calls</span> <span class="faint">@L["batch.calc.answersIn", _caseSel.Count * _reps]</span>
                     @if (_autoJudge && _judgeSel.Count > 0)
                     {
-                        <span class="faint">+ @(_caseSel.Count * _reps * _judgeSel.Count) ocen sędziego</span>
+                        <span class="faint">@L["batch.calc.judgeRatings", _caseSel.Count * _reps * _judgeSel.Count]</span>
                     }
                 </div>
             </div>
         }
     </ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">@L["common.cancel"]</button>
         <button class="btn btn-primary" disabled="@(!CanRun || _running)" @onclick="Run">
-            <Icon Name="@(_running ? "loader" : "zap")" Class="@(_running ? "spin" : null)" /> Odpal serię (@Calls)
+            <Icon Name="@(_running ? "loader" : "zap")" Class="@(_running ? "spin" : null)" /> @L["batch.dialog.run", Calls]
         </button>
     </Footer>
 </Modal>
@@ -142,7 +141,7 @@
 
     private int Calls => _caseSel.Count * _modelSel.Count * _reps;
     private bool CanRun => _caseSel.Count > 0 && _modelSel.Count > 0 && (!_autoJudge || _judgeSel.Count > 0);
-    private string DefaultName => $"Seria {DateTime.Now:yyyy-MM-dd HH:mm}";
+    private string DefaultName => L["batch.dialog.defaultName", DateTime.Now.ToString("yyyy-MM-dd HH:mm")];
 
     private IEnumerable<TestCaseSummaryDto> Visible => _cases!
         .Where(c => _tagFilter is null || c.Tags.Contains(_tagFilter))
@@ -198,7 +197,7 @@
         BatchDto? batch = null;
         var req = new CreateBatchRequest(_caseSel.ToList(), _modelSel.ToList(), _reps, _name ?? DefaultName, null, Me.User?.Id,
             _autoJudge, _autoJudge ? _judgeSel.ToList() : null);
-        var ok = await Toasts.Try(async () => batch = await Svc.CreateBatchAsync(req), $"Seria wystartowała – {Calls} odpowiedzi w kolejce");
+        var ok = await Toasts.Try(async () => batch = await Svc.CreateBatchAsync(req), L["batch.dialog.started", Calls]);
         _running = false;
         if (!ok) return;
         await JS.InvokeVoidAsync("localStorage.setItem", LastModelsKey, string.Join(',', _modelSel));

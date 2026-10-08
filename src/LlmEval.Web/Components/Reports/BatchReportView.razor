@@ -1,0 +1,382 @@
+@* Standalone, print-ready series report. Rendered to a string by HtmlRenderer (see ReportEndpoints) – no interactivity. *@
+@((MarkupString)"<!DOCTYPE html>")
+<html lang="@O.Lang">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@B.Summary.Name – @T("report.kicker")</title>
+    <style>@((MarkupString)Css)</style>
+</head>
+<body>
+    <nav class="toolbar no-print">
+        <b>@T("report.kicker")</b>
+        <span class="grow"></span>
+        <a class="toggle @(O.Reveal ? "on" : "")" href="@Link(reveal: !O.Reveal)">👁 @T("report.toolbar.reveal")</a>
+        <a class="toggle @(O.Comments ? "on" : "")" href="@Link(comments: !O.Comments)">💬 @T("report.toolbar.comments")</a>
+        <a class="toggle @(O.Answers ? "on" : "")" href="@Link(answers: !O.Answers)">📄 @T("report.toolbar.answers")</a>
+        <a class="toggle" href="@Link(lang: O.Lang == "pl" ? "en" : "pl")">🌐 @(O.Lang == "pl" ? "EN" : "PL")</a>
+        <button onclick="window.print()">🖨 @T("report.toolbar.print")</button>
+        <div class="hint">@T("report.toolbar.hint")</div>
+    </nav>
+
+    <main class="paper">
+        @* ── cover ── *@
+        <header class="cover">
+            <div class="brand"><span class="logo">✦</span> LLM Eval Studio</div>
+            <div class="kicker">@T("report.kicker")</div>
+            <h1>@B.Summary.Name</h1>
+            <div class="meta">
+                @F("report.generated", I18n.Date(O.Lang, R.GeneratedAt))
+                @if (B.Summary.CreatedBy is not null) { <span> · @F("report.by", B.Summary.CreatedBy)</span> }
+            </div>
+            <div class="kpis">
+                <div><b>@B.Summary.TestCaseCount</b><span>@T("report.kpi.cases")</span></div>
+                <div><b>@B.Summary.ModelCount</b><span>@T("report.kpi.models")</span></div>
+                <div><b>@B.Summary.Repetitions</b><span>@T("report.kpi.reps")</span></div>
+                <div><b>@B.Summary.ResultTotal</b><span>@T("report.kpi.answers")</span></div>
+                <div><b>@R.HumanRatings</b><span>@T("report.kpi.human")</span></div>
+                <div><b>@R.AiRatings</b><span>@T("report.kpi.ai")</span></div>
+            </div>
+        </header>
+
+        @* ── verdict ── *@
+        <section class="verdict">
+            <div class="label">🏆 @T("report.verdict")</div>
+            @if (Ranked.Count == 0 || Ranked[0].AvgStars is null)
+            {
+                <p>@T("report.verdict.none")</p>
+            }
+            else
+            {
+                var top = Ranked.Where(m => m.AvgStars == Ranked[0].AvgStars).ToList();
+                if (top.Count > 1)
+                {
+                    <p class="headline">@F("report.verdict.tie", string.Join(", ", top.Select(Name)), Stars(top[0].AvgStars))</p>
+                }
+                else
+                {
+                    var w = Ranked[0];
+                    var gap = Ranked.Count > 1 && Ranked[1].AvgStars is { } second ? w.AvgStars!.Value - second : (double?)null;
+                    <p class="headline">@F("report.verdict.winner", Name(w), Stars(w.AvgStars))</p>
+                    <p class="sub">@F("report.verdict.detail", w.Wins, w.StdDev?.ToString("0.00", Culture) ?? "—", gap is null ? "—" : $"+{gap.Value.ToString("0.00", Culture)} ★")</p>
+                }
+            }
+            @if (!O.Reveal) { <p class="sub">🙈 @T("report.verdict.blind")</p> }
+        </section>
+
+        @* ── ranking ── *@
+        <section>
+            <h2>@T("report.ranking")</h2>
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th>#</th><th>@T("report.col.model")</th><th class="num">@T("report.col.avg")</th>
+                        <th class="num">@T("report.col.human")</th><th class="num">@T("report.col.ai")</th>
+                        <th class="num">@T("report.col.wins")</th><th class="num">@T("report.col.sigma")</th>
+                        <th class="num">@T("report.col.failures")</th><th class="num">@T("report.col.latency")</th>
+                        <th class="num">@T("report.col.tokens")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Ranked.Count; i++)
+                    {
+                        var m = Ranked[i];
+                        <tr>
+                            <td><span class="rank r@(i + 1)">@(i + 1)</span></td>
+                            <td><b>@Name(m)</b>@if (m.Model is not null) { <div class="muted small">@m.Model.ProviderName · @F("candidate", m.Alias)</div> }</td>
+                            <td class="num"><b>@Stars(m.AvgStars)</b> <span class="muted small">(@m.RatingCount)</span></td>
+                            <td class="num">@Stars(m.AvgStarsHuman)</td>
+                            <td class="num">@Stars(m.AvgStarsAi)</td>
+                            <td class="num">@m.Wins</td>
+                            <td class="num">@(m.StdDev?.ToString("0.00", Culture) ?? "—")</td>
+                            <td class="num">@m.Failures/@m.Results</td>
+                            <td class="num muted">@I18n.Ms(O.Lang, m.AvgLatencyMs)</td>
+                            <td class="num muted">@(m.AvgOutputTokens is { } t ? I18n.Num(O.Lang, t) : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        @* ── chart ── *@
+        <section class="avoid-break">
+            <h2>@T("report.chart.title")</h2>
+            @((MarkupString)ChartSvg())
+        </section>
+
+        @* ── matrix ── *@
+        <section class="avoid-break">
+            <h2>@T("report.matrix")</h2>
+            <table class="heat">
+                <thead>
+                    <tr>
+                        <th class="case">@T("report.matrix.case")</th>
+                        @foreach (var m in Ranked) { <th>@Name(m)</th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in B.Rows)
+                    {
+                        <tr>
+                            <td class="case">@row.Title</td>
+                            @foreach (var m in Ranked)
+                            {
+                                var v = row.ModelAvgs.FirstOrDefault(x => x.Alias == m.Alias)?.AvgStars;
+                                var (bg, fg) = Heat(v);
+                                <td style="background:@bg;color:@fg">@Stars(v)</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="scale">
+                @for (var s = 1; s <= 5; s++) { var (bg, fg) = Heat(s); <span style="background:@bg;color:@fg">@s</span> }
+                <em>@T("report.matrix.legend")</em>
+            </div>
+        </section>
+
+        @* ── details ── *@
+        <section>
+            <h2 class="page-break">@T("report.details")</h2>
+            @foreach (var c in R.Cases)
+            {
+                <article class="case-card">
+                    <h3>@c.Title</h3>
+                    @if (c.SystemPrompt is not null)
+                    {
+                        <div class="label">@T("report.details.system")</div>
+                        <pre class="prompt">@Cut(c.SystemPrompt, 600)</pre>
+                    }
+                    <div class="label">@T("report.details.prompt")</div>
+                    <pre class="prompt">@Cut(c.UserMessage, 900)</pre>
+                    @if (c.ExpectedAnswer is not null)
+                    {
+                        <div class="label expected">✓ @T("report.details.expected")</div>
+                        <pre class="prompt expected">@Cut(c.ExpectedAnswer, 700)</pre>
+                    }
+
+                    <table class="answers">
+                        @foreach (var a in c.Answers)
+                        {
+                            <tr>
+                                <td class="who">
+                                    <b>@(a.ModelName ?? F("candidate", a.Alias))</b>
+                                    <div class="muted small">@F("report.details.rep", a.Repetition)</div>
+                                </td>
+                                <td class="score">
+                                    @if (a.Status == ResultStatus.Failed) { <span class="fail">✕ @T("report.details.failed")</span> }
+                                    else if (a.AvgStars is null) { <span class="muted">@T("report.details.noRatings")</span> }
+                                    else { var (bg, fg) = Heat(a.AvgStars); <span class="pill" style="background:@bg;color:@fg">@Stars(a.AvgStars) ★</span> }
+                                </td>
+                                <td>
+                                    @if (O.Comments)
+                                    {
+                                        @foreach (var r in a.Ratings)
+                                        {
+                                            <div class="rating">
+                                                <span class="stars">@(new string('★', r.Stars))<span class="off">@(new string('★', 5 - r.Stars))</span></span>
+                                                <b>@(r.IsAi ? "⚖ " : "")@r.User</b>@if (r.Comment is not null) { <span> – @r.Comment</span> }
+                                            </div>
+                                        }
+                                    }
+                                    @if (O.Answers && a.Output is not null)
+                                    {
+                                        <details open><summary>@T("report.details.answer")</summary><pre class="answer">@Cut(a.Output, 1500)</pre></details>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </table>
+                </article>
+            }
+        </section>
+
+        <section class="method">
+            <h2>@T("report.method")</h2>
+            <p>@T("report.method.text")</p>
+            @if (R.JudgeNames.Count > 0) { <p>@F("report.method.judges", string.Join(", ", R.JudgeNames))</p> }
+        </section>
+
+        <footer class="foot">@F("report.footer", I18n.Date(O.Lang, R.GeneratedAt))</footer>
+    </main>
+
+    @if (O.AutoPrint)
+    {
+        <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>
+    }
+</body>
+</html>
+
+@code {
+    [Parameter, EditorRequired] public BatchReport R { get; set; } = null!;
+    [Parameter, EditorRequired] public ReportOptions O { get; set; } = null!;
+    [Parameter, EditorRequired] public string BaseUrl { get; set; } = "";
+
+    private BatchDto B => R.Batch;
+    private System.Globalization.CultureInfo Culture => I18n.CultureOf(O.Lang);
+    private List<BatchModelStatDto> Ranked => B.Models.OrderByDescending(m => m.AvgStars ?? -1).ThenByDescending(m => m.Wins).ToList();
+
+    private string T(string key) => I18n.Get(O.Lang, key);
+    private string F(string key, params object?[] args) => I18n.Format(O.Lang, key, args);
+    private string Stars(double? v) => I18n.Stars(O.Lang, v);
+    private string Name(BatchModelStatDto m) => m.Model?.DisplayName ?? F("candidate", m.Alias);
+    private string Cut(string s, int max) => s.Length <= max ? s : s[..max].TrimEnd() + T("report.details.truncated");
+
+    private string Link(bool? reveal = null, bool? comments = null, bool? answers = null, string? lang = null) =>
+        $"{BaseUrl}?lang={lang ?? O.Lang}&reveal={(reveal ?? O.Reveal).ToString().ToLowerInvariant()}" +
+        $"&comments={(comments ?? O.Comments).ToString().ToLowerInvariant()}&answers={(answers ?? O.Answers).ToString().ToLowerInvariant()}";
+
+    // Sequential single-hue ramp (blue 100 → 550): magnitude, lighter = worse. Text flips to white on the dark steps.
+    private static readonly string[] Ramp = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#1c5cab"];
+
+    private static (string Bg, string Fg) Heat(double? v)
+    {
+        if (v is null) return ("#f3f3f1", "#8a8985");
+        var i = (int)Math.Clamp(Math.Round(v.Value) - 1, 0, 4);
+        return (Ramp[i], i >= 3 ? "#ffffff" : "#0b0b0b");
+    }
+
+    /// <summary>Horizontal bars, 0–5 scale; two series (humans / AI) only when both exist.</summary>
+    private string ChartSvg()
+    {
+        const string human = "#2a78d6", ai = "#eb6834", grid = "#e4e3df", ink = "#0b0b0b", muted = "#52514e";
+        var models = Ranked;
+        var hasHuman = models.Any(m => m.AvgStarsHuman is not null);
+        var hasAi = models.Any(m => m.AvgStarsAi is not null);
+        var split = hasHuman && hasAi;
+        var series = split
+            ? new[] { (T("report.chart.human"), human, (Func<BatchModelStatDto, double?>)(m => m.AvgStarsHuman)), (T("report.chart.ai"), ai, m => m.AvgStarsAi) }
+            : new[] { (T("report.chart.all"), human, (Func<BatchModelStatDto, double?>)(m => m.AvgStars)) };
+
+        const int labelW = 190, plotW = 430, barH = 14, barGap = 2, groupGap = 16, top = 34;
+        var groupH = series.Length * barH + (series.Length - 1) * barGap;
+        var height = top + models.Count * (groupH + groupGap) + 22;
+        var x0 = labelW;
+        double X(double v) => x0 + v / 5 * plotW;
+        string E(string s) => System.Net.WebUtility.HtmlEncode(s);
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"<svg class='chart' viewBox='0 0 690 {height}' width='100%' role='img' aria-label='{E(T("report.chart.title"))}' font-family='inherit'>");
+
+        // legend (only for two series – one series is named by the section title)
+        if (split)
+        {
+            var lx = x0;
+            foreach (var (name, color, _) in series)
+            {
+                sb.Append($"<rect x='{lx}' y='6' width='12' height='12' rx='3' fill='{color}'/><text x='{lx + 18}' y='16' font-size='12' fill='{muted}'>{E(name)}</text>");
+                lx += 30 + name.Length * 7;
+            }
+        }
+
+        // recessive grid + axis labels
+        for (var g = 0; g <= 5; g++)
+        {
+            var gx = X(g);
+            sb.Append($"<line x1='{gx:0.#}' x2='{gx:0.#}' y1='{top - 6}' y2='{height - 20}' stroke='{grid}' stroke-width='1'/>");
+            sb.Append($"<text x='{gx:0.#}' y='{height - 6}' font-size='10' fill='{muted}' text-anchor='middle'>{g}</text>");
+        }
+
+        var y = top;
+        foreach (var m in models)
+        {
+            sb.Append($"<text x='{labelW - 10}' y='{y + groupH / 2 + 4}' font-size='12' fill='{ink}' text-anchor='end'>{E(Cut(Name(m), 28))}</text>");
+            var by = y;
+            foreach (var (name, color, pick) in series)
+            {
+                var v = pick(m);
+                if (v is { } val)
+                {
+                    var w = Math.Max(2, X(val) - x0);
+                    // 4px rounded data end, square at the baseline
+                    sb.Append($"<path d='M{x0},{by} h{w - 4:0.##} a4,4 0 0 1 4,4 v{barH - 8} a4,4 0 0 1 -4,4 h{-(w - 4):0.##} z' fill='{color}'>");
+                    sb.Append($"<title>{E(Name(m))} · {E(name)}: {Stars(val)} ★</title></path>");
+                    sb.Append($"<text x='{x0 + w + 6:0.#}' y='{by + barH - 3}' font-size='11' fill='{muted}'>{Stars(val)}</text>");
+                }
+                else
+                {
+                    sb.Append($"<text x='{x0 + 4}' y='{by + barH - 3}' font-size='11' fill='{muted}'>—</text>");
+                }
+                by += barH + barGap;
+            }
+            y += groupH + groupGap;
+        }
+        sb.Append("</svg>");
+        return sb.ToString();
+    }
+
+    private const string Css = """
+        :root { --ink:#0b0b0b; --ink2:#52514e; --line:#e4e3df; --soft:#f6f5f2; --accent:#6d28d9; --accent2:#0891b2; }
+        * { box-sizing: border-box; }
+        html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { margin: 0; background: #e9e8e4; color: var(--ink); font: 13px/1.5 "Segoe UI", Inter, -apple-system, Helvetica, Arial, sans-serif; }
+        .toolbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 18px; background: #111018; color: #eee; }
+        .toolbar .grow { flex: 1; }
+        .toolbar a, .toolbar button { color: #ddd; text-decoration: none; border: 1px solid #3a3946; border-radius: 8px; padding: 5px 10px; font: inherit; background: transparent; cursor: pointer; }
+        .toolbar a.on { background: #2e2a4a; border-color: #6d5bd0; color: #fff; }
+        .toolbar button { background: linear-gradient(135deg,#7c3aed,#0891b2); border: 0; color: #fff; font-weight: 600; }
+        .toolbar .hint { width: 100%; font-size: 11px; color: #9a99a8; }
+        .paper { width: 210mm; margin: 18px auto 40px; background: #fff; padding: 0 16mm 14mm; box-shadow: 0 10px 40px rgba(0,0,0,.15); }
+        .cover { margin: 0 -16mm 18px; padding: 16mm 16mm 12mm; color: #fff;
+                 background: radial-gradient(circle at 12% 0%, rgba(139,92,246,.75), transparent 55%), radial-gradient(circle at 95% 30%, rgba(34,211,238,.45), transparent 50%), #0d0c16; }
+        .brand { font-weight: 700; letter-spacing: -.01em; opacity: .9; }
+        .logo { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#8b5cf6,#22d3ee); margin-right: 6px; }
+        .kicker { margin-top: 18px; text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: #c4b5fd; }
+        h1 { font-size: 28px; line-height: 1.15; margin: 4px 0 6px; letter-spacing: -.02em; }
+        .meta { color: #c9c8d6; font-size: 12px; }
+        .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 16px; }
+        .kpis div { border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 8px 10px; background: rgba(255,255,255,.06); }
+        .kpis b { display: block; font-size: 20px; line-height: 1.1; }
+        .kpis span { font-size: 10.5px; color: #c9c8d6; }
+        h2 { font-size: 15px; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--ink); letter-spacing: -.01em; }
+        h3 { font-size: 13.5px; margin: 0 0 6px; }
+        .verdict { border: 1px solid #ddd6fe; background: linear-gradient(135deg,#f5f3ff,#ecfeff); border-radius: 12px; padding: 12px 16px; }
+        .verdict .label { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); font-weight: 700; }
+        .verdict p { margin: 4px 0 0; }
+        .verdict .headline { font-size: 17px; font-weight: 700; }
+        .verdict .sub { color: var(--ink2); }
+        table { width: 100%; border-collapse: collapse; }
+        .data th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink2); padding: 6px; border-bottom: 1px solid var(--line); }
+        .data td { padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+        .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .muted { color: var(--ink2); } .small { font-size: 11px; }
+        .rank { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-weight: 700; font-size: 11px; background: var(--soft); }
+        .rank.r1 { background: #fde68a; } .rank.r2 { background: #e5e7eb; } .rank.r3 { background: #fed7aa; }
+        .chart { display: block; margin-top: 4px; }
+        .heat th { font-size: 10.5px; color: var(--ink2); font-weight: 600; padding: 5px 4px; text-align: center; }
+        .heat th.case, .heat td.case { text-align: left; width: 38%; }
+        .heat td { padding: 6px 4px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; border: 2px solid #fff; border-radius: 6px; }
+        .heat td.case { font-weight: 500; }
+        .scale { display: flex; gap: 2px; align-items: center; margin-top: 6px; font-size: 11px; }
+        .scale span { width: 24px; text-align: center; border-radius: 4px; font-weight: 600; }
+        .scale em { margin-left: 8px; color: var(--ink2); font-style: normal; }
+        .case-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; break-inside: avoid-page; }
+        .label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink2); margin: 6px 0 2px; font-weight: 700; }
+        .label.expected { color: #047857; }
+        pre { white-space: pre-wrap; word-break: break-word; margin: 0; font: 11.5px/1.45 "Cascadia Mono", Consolas, ui-monospace, monospace; }
+        pre.prompt { background: var(--soft); border-radius: 8px; padding: 8px 10px; max-height: none; }
+        pre.expected { background: #ecfdf5; border: 1px solid #a7f3d0; }
+        .answers { margin-top: 10px; }
+        .answers td { border-top: 1px solid var(--line); padding: 6px 6px; vertical-align: top; }
+        .answers td.who { width: 24%; } .answers td.score { width: 13%; white-space: nowrap; }
+        .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+        .fail { color: #b91c1c; font-weight: 600; font-size: 12px; }
+        .rating { font-size: 12px; margin-bottom: 3px; }
+        .stars { color: #d97706; letter-spacing: -1px; margin-right: 6px; } .stars .off { color: #d6d3d1; }
+        details summary { font-size: 11px; color: var(--ink2); cursor: pointer; margin-top: 4px; }
+        pre.answer { margin-top: 4px; padding: 8px 10px; border-left: 3px solid var(--accent2); background: #f8fafc; }
+        .method p { color: var(--ink2); font-size: 12px; }
+        .foot { margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--ink2); }
+        .avoid-break { break-inside: avoid-page; }
+        @page { size: A4; margin: 12mm 0 14mm; @bottom-center { content: counter(page) " / " counter(pages); font: 9px "Segoe UI", sans-serif; color: #888; } }
+        @page :first { margin-top: 0; }
+        @media print {
+          body { background: #fff; }
+          .no-print { display: none !important; }
+          .paper { width: auto; margin: 0; box-shadow: none; padding: 0 14mm; }
+          .cover { margin: 0 -14mm 16px; padding: 14mm; }
+          .page-break { break-before: page; }
+          details > summary { display: none; }
+        }
+        """;
+}

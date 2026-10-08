@@ -2,15 +2,15 @@
 @inject EvalService Svc
 @inject Toaster Toasts
 
-<PageTitle>Providerzy · LLM Eval</PageTitle>
+<PageTitle>@L["providers.pageTitle"] · LLM Eval</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1>Providerzy i modele</h1>
-        <div class="subtitle">API OpenAI, Anthropic, Ollama oraz lokalne CLI: Claude Code i Codex.</div>
+        <h1>@L["providers.title"]</h1>
+        <div class="subtitle">@L["providers.subtitle"]</div>
     </div>
     <div class="actions">
-        <button class="btn btn-primary" @onclick="() => OpenProvider(null)"><Icon Name="plus" /> Dodaj providera</button>
+        <button class="btn btn-primary" @onclick="() => OpenProvider(null)"><Icon Name="plus" /> @L["providers.add"]</button>
     </div>
 </div>
 
@@ -34,15 +34,15 @@ else
                         </div>
                         <div class="small faint mono ellipsis" style="margin-top:2px">@Describe(p)</div>
                     </div>
-                    <label class="switch small" title="@(p.Enabled ? "Wyłącz providera" : "Włącz providera")">
+                    <label class="switch small" title="@(p.Enabled ? L["providers.disableProvider"] : L["providers.enableProvider"])">
                         <input type="checkbox" checked="@p.Enabled" @onchange="e => ToggleProvider(p, (bool)e.Value!)" />
-                        <span class="track"></span> @(p.Enabled ? "Włączony" : "Wyłączony")
+                        <span class="track"></span> @(p.Enabled ? L["common.enabled"] : L["common.disabled"])
                     </label>
                     <button class="btn btn-sm" disabled="@_testing.Contains(p.Id)" @onclick="() => Test(p)">
-                        <Icon Name="@(_testing.Contains(p.Id) ? "loader" : "plug")" Size="14" Class="@(_testing.Contains(p.Id) ? "spin" : null)" /> Test
+                        <Icon Name="@(_testing.Contains(p.Id) ? "loader" : "plug")" Size="14" Class="@(_testing.Contains(p.Id) ? "spin" : null)" /> @L["providers.test"]
                     </button>
-                    <button class="btn btn-sm btn-icon" title="Edytuj" @onclick="() => OpenProvider(p)"><Icon Name="pencil" Size="14" /></button>
-                    <button class="btn btn-sm btn-icon btn-danger" title="Usuń" @onclick="() => DeleteProvider(p)"><Icon Name="trash" Size="14" /></button>
+                    <button class="btn btn-sm btn-icon" title="@L["common.edit"]" @onclick="() => OpenProvider(p)"><Icon Name="pencil" Size="14" /></button>
+                    <button class="btn btn-sm btn-icon btn-danger" title="@L["common.delete"]" @onclick="() => DeleteProvider(p)"><Icon Name="trash" Size="14" /></button>
                 </div>
 
                 @if (test is not null)
@@ -55,7 +55,7 @@ else
                                 @foreach (var name in test.Models.Take(60))
                                 {
                                     var exists = p.Models.Any(m => m.ModelId == name);
-                                    <button class="chip @(exists ? "on" : "")" disabled="@exists" title="@(exists ? "Już dodany" : "Kliknij, żeby dodać")" @onclick="() => QuickAdd(p, name)">
+                                    <button class="chip @(exists ? "on" : "")" disabled="@exists" title="@(exists ? L["providers.alreadyAdded"] : L["providers.clickToAdd"])" @onclick="() => QuickAdd(p, name)">
                                         @if (!exists) { <Icon Name="plus" Size="11" /> } @name
                                     </button>
                                 }
@@ -67,30 +67,30 @@ else
                 <div class="divider"></div>
                 @if (p.Models.Count == 0)
                 {
-                    <div class="small faint">Brak modeli.</div>
+                    <div class="small faint">@L["providers.noModels"]</div>
                 }
                 else
                 {
                     <table class="table">
-                        <thead><tr><th style="width:60px">Aktywny</th><th>Nazwa</th><th>Model ID</th><th>Temperatura</th><th>Max tokens</th><th style="width:110px" title="Model może oceniać odpowiedzi innych modeli">Sędzia AI</th><th></th></tr></thead>
+                        <thead><tr><th style="width:60px">@L["providers.col.active"]</th><th>@L["providers.col.name"]</th><th>@L["providers.modelId"]</th><th>@L["providers.temperature"]</th><th>@L["providers.maxTokens"]</th><th style="width:110px" title="@L["providers.judgeTooltip"]">@L["providers.aiJudge"]</th><th></th></tr></thead>
                         <tbody>
                         @foreach (var m in p.Models)
                         {
                             <tr>
                                 <td>
-                                    <label class="switch" title="@(m.Enabled ? "Wyłącz model" : "Włącz model")">
+                                    <label class="switch" title="@(m.Enabled ? L["providers.disableModel"] : L["providers.enableModel"])">
                                         <input type="checkbox" checked="@m.Enabled" @onchange="e => PatchModel(m, new PatchModelRequest(Enabled: (bool)e.Value!))" />
                                         <span class="track"></span>
                                     </label>
                                 </td>
                                 <td style="font-weight:500;@(m.Enabled ? "" : "opacity:.45")">@m.DisplayName</td>
                                 <td class="mono small muted">@m.ModelId</td>
-                                <td class="muted">@(m.Temperature?.ToString("0.##") ?? "domyślna")</td>
-                                <td class="muted">@(m.MaxTokens?.ToString() ?? "domyślne")</td>
+                                <td class="muted">@(m.Temperature?.ToString("0.##", L.Culture) ?? L["providers.defaultTemp"])</td>
+                                <td class="muted">@(m.MaxTokens?.ToString() ?? L["providers.defaultTokens"])</td>
                                 <td>
-                                    <button class="judge-toggle @(m.IsJudge ? "on" : "")" title="@(m.IsJudge ? "Sędzia – kliknij, żeby zdjąć togę" : "Ustaw jako sędziego")"
+                                    <button class="judge-toggle @(m.IsJudge ? "on" : "")" title="@(m.IsJudge ? L["providers.judgeOn"] : L["providers.makeJudge"])"
                                             @onclick="() => PatchModel(m, new PatchModelRequest(IsJudge: !m.IsJudge))">
-                                        <Icon Name="scale" Size="14" /> @(m.IsJudge ? "Sędzia" : "—")
+                                        <Icon Name="scale" Size="14" /> @(m.IsJudge ? L["providers.judge"] : "—")
                                     </button>
                                 </td>
                                 <td class="num" style="white-space:nowrap">
@@ -102,18 +102,18 @@ else
                         </tbody>
                     </table>
                 }
-                <button class="btn btn-ghost btn-sm" style="margin-top:8px" @onclick="() => OpenModel(p, null)"><Icon Name="plus" Size="13" /> Dodaj model</button>
+                <button class="btn btn-ghost btn-sm" style="margin-top:8px" @onclick="() => OpenModel(p, null)"><Icon Name="plus" Size="13" /> @L["providers.addModel"]</button>
             </div>
         }
     </div>
 }
 
-<Modal @bind-Open="_providerOpen" Title="@(_editProvider is null ? "Nowy provider" : "Edytuj providera")" Icon="cpu">
+<Modal @bind-Open="_providerOpen" Title="@(_editProvider is null ? L["providers.newProvider"] : L["providers.editProvider"])" Icon="cpu">
     <ChildContent>
         <div class="stack" style="gap:14px">
-            <div class="field"><label>Nazwa</label><input class="input" @bind="_pName" placeholder="np. OpenAI prod" /></div>
+            <div class="field"><label>@L["providers.col.name"]</label><input class="input" @bind="_pName" placeholder="@L["providers.namePh"]" /></div>
             <div class="field">
-                <label>Typ</label>
+                <label>@L["providers.type"]</label>
                 <select class="select" @bind="_pType">
                     @foreach (var t in Enum.GetValues<ProviderType>()) { <option value="@t">@TypeLabel(t)</option> }
                 </select>
@@ -121,61 +121,61 @@ else
             @if (_pType is ProviderType.OpenAI or ProviderType.Anthropic or ProviderType.Ollama)
             {
                 <div class="field">
-                    <label>Base URL</label>
+                    <label>@L["providers.baseUrl"]</label>
                     <input class="input mono" @bind="_pBaseUrl" placeholder="@DefaultUrl(_pType)" />
-                    <div class="hint">Puste = domyślny. Dla OpenAI działa też z dowolnym API kompatybilnym (Azure, OpenRouter, LM Studio…).</div>
+                    <div class="hint">@L["providers.baseUrlHint"]</div>
                 </div>
             }
             @if (_pType is ProviderType.OpenAI or ProviderType.Anthropic)
             {
                 <div class="field">
-                    <label>Klucz API</label>
-                    <input class="input mono" type="password" @bind="_pApiKey" placeholder="@(_editProvider?.HasApiKey == true ? "•••••••• (zostaw puste, żeby nie zmieniać)" : "sk-…  (puste = zmienna środowiskowa)")" />
+                    <label>@L["providers.apiKey"]</label>
+                    <input class="input mono" type="password" @bind="_pApiKey" placeholder="@(_editProvider?.HasApiKey == true ? L["providers.apiKeyKeep"] : L["providers.apiKeyPh"])" />
                     @if (_editProvider?.HasApiKey == true)
                     {
-                        <label class="switch small"><input type="checkbox" @bind="_pClearKey" /><span class="track"></span> Usuń zapisany klucz</label>
+                        <label class="switch small"><input type="checkbox" @bind="_pClearKey" /><span class="track"></span> @L["providers.clearKey"]</label>
                     }
-                    <div class="hint">Fallback: <code class="kbd">@(_pType == ProviderType.OpenAI ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY")</code></div>
+                    <div class="hint">@L["providers.fallback"] <code class="kbd">@(_pType == ProviderType.OpenAI ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY")</code></div>
                 </div>
             }
             @if (_pType is ProviderType.ClaudeCli or ProviderType.CodexCli)
             {
                 <div class="field">
-                    <label>Ścieżka do CLI</label>
-                    <input class="input mono" @bind="_pCliPath" placeholder="@(_pType == ProviderType.ClaudeCli ? "claude" : "codex") (z PATH)" />
+                    <label>@L["providers.cliPath"]</label>
+                    <input class="input mono" @bind="_pCliPath" placeholder="@(L["providers.cliPathPh", _pType == ProviderType.ClaudeCli ? "claude" : "codex"])" />
                 </div>
                 <div class="field">
-                    <label>Dodatkowe argumenty</label>
-                    <input class="input mono" @bind="_pExtraArgs" placeholder="@(_pType == ProviderType.ClaudeCli ? "np. --max-turns 1" : "np. -c model_reasoning_effort=high")" />
+                    <label>@L["providers.extraArgs"]</label>
+                    <input class="input mono" @bind="_pExtraArgs" placeholder="@(L["providers.extraArgsPh", _pType == ProviderType.ClaudeCli ? "--max-turns 1" : "-c model_reasoning_effort=high"])" />
                 </div>
             }
-            <div class="field"><label>Timeout (s)</label><input class="input" type="number" @bind="_pTimeout" /></div>
-            <label class="switch"><input type="checkbox" @bind="_pEnabled" /><span class="track"></span> Włączony</label>
+            <div class="field"><label>@L["providers.timeout"]</label><input class="input" type="number" @bind="_pTimeout" /></div>
+            <label class="switch"><input type="checkbox" @bind="_pEnabled" /><span class="track"></span> @L["common.enabled"]</label>
         </div>
     </ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => _providerOpen = false">Anuluj</button>
-        <button class="btn btn-primary" @onclick="SaveProvider"><Icon Name="check" /> Zapisz</button>
+        <button class="btn btn-ghost" @onclick="() => _providerOpen = false">@L["common.cancel"]</button>
+        <button class="btn btn-primary" @onclick="SaveProvider"><Icon Name="check" /> @L["common.save"]</button>
     </Footer>
 </Modal>
 
-<Modal @bind-Open="_modelOpen" Title="@(_editModel is null ? "Nowy model" : "Edytuj model")" Icon="sparkles">
+<Modal @bind-Open="_modelOpen" Title="@(_editModel is null ? L["providers.newModel"] : L["providers.editModel"])" Icon="sparkles">
     <ChildContent>
         <div class="stack" style="gap:14px">
-            <div class="field"><label>Model ID</label><input class="input mono" @bind="_mId" placeholder="np. gpt-5, claude-sonnet-5-5, llama3.2, sonnet" /></div>
-            <div class="field"><label>Nazwa wyświetlana</label><input class="input" @bind="_mName" placeholder="puste = Model ID" /></div>
+            <div class="field"><label>@L["providers.modelId"]</label><input class="input mono" @bind="_mId" placeholder="@L["providers.modelIdPh"]" /></div>
+            <div class="field"><label>@L["providers.displayName"]</label><input class="input" @bind="_mName" placeholder="@L["providers.displayNamePh"]" /></div>
             <div class="grid grid-2">
-                <div class="field"><label>Temperatura</label><input class="input" type="number" step="0.1" @bind="_mTemp" placeholder="domyślna" /></div>
-                <div class="field"><label>Max tokens</label><input class="input" type="number" @bind="_mMax" placeholder="domyślne" /></div>
+                <div class="field"><label>@L["providers.temperature"]</label><input class="input" type="number" step="0.1" @bind="_mTemp" placeholder="@L["providers.defaultTemp"]" /></div>
+                <div class="field"><label>@L["providers.maxTokens"]</label><input class="input" type="number" @bind="_mMax" placeholder="@L["providers.defaultTokens"]" /></div>
             </div>
-            <div class="hint">Temperatura/max tokens są ignorowane przez providery CLI. Niektóre modele reasoning nie przyjmują temperatury – zostaw pustą.</div>
-            <label class="switch"><input type="checkbox" @bind="_mEnabled" /><span class="track"></span> Włączony</label>
-            <label class="switch"><input type="checkbox" @bind="_mIsJudge" /><span class="track"></span> Sędzia AI – może oceniać odpowiedzi innych modeli</label>
+            <div class="hint">@L["providers.modelHint"]</div>
+            <label class="switch"><input type="checkbox" @bind="_mEnabled" /><span class="track"></span> @L["common.enabled"]</label>
+            <label class="switch"><input type="checkbox" @bind="_mIsJudge" /><span class="track"></span> @L["providers.judgeSwitch"]</label>
         </div>
     </ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => _modelOpen = false">Anuluj</button>
-        <button class="btn btn-primary" @onclick="SaveModel"><Icon Name="check" /> Zapisz</button>
+        <button class="btn btn-ghost" @onclick="() => _modelOpen = false">@L["common.cancel"]</button>
+        <button class="btn btn-primary" @onclick="SaveModel"><Icon Name="check" /> @L["common.save"]</button>
     </Footer>
 </Modal>
 
@@ -218,11 +218,11 @@ else
         _ => "http://localhost:11434"
     };
 
-    private static string Describe(ProviderDto p) => p.Type switch
+    private string Describe(ProviderDto p) => p.Type switch
     {
         ProviderType.ClaudeCli or ProviderType.CodexCli =>
-            $"{p.CliPath ?? (p.Type == ProviderType.ClaudeCli ? "claude" : "codex")} {p.ExtraArgs} · timeout {p.TimeoutSeconds}s",
-        _ => $"{p.BaseUrl ?? DefaultUrl(p.Type)}{(p.Type == ProviderType.Ollama ? "" : p.HasApiKey ? " · klucz zapisany" : " · klucz z env")}"
+            $"{p.CliPath ?? (p.Type == ProviderType.ClaudeCli ? "claude" : "codex")} {p.ExtraArgs} · {L["providers.timeoutShort", p.TimeoutSeconds]}",
+        _ => $"{p.BaseUrl ?? DefaultUrl(p.Type)}{(p.Type == ProviderType.Ollama ? "" : " · " + (p.HasApiKey ? L["providers.keySaved"] : L["providers.keyFromEnv"]))}"
     };
 
     private void OpenProvider(ProviderDto? p)
@@ -248,7 +248,7 @@ else
             {
                 if (_editProvider is null) await Svc.CreateProviderAsync(req);
                 else await Svc.UpdateProviderAsync(_editProvider.Id, req);
-            }, "Provider zapisany"))
+            }, L["providers.providerSaved"]))
         {
             _providerOpen = false;
             await Load();
@@ -257,7 +257,7 @@ else
 
     private async Task DeleteProvider(ProviderDto p)
     {
-        if (await Toasts.Try(() => Svc.DeleteProviderAsync(p.Id), $"Usunięto {p.Name}")) await Load();
+        if (await Toasts.Try(() => Svc.DeleteProviderAsync(p.Id), L["providers.deleted", p.Name])) await Load();
     }
 
     private async Task Test(ProviderDto p)
@@ -287,7 +287,7 @@ else
             {
                 if (_editModel is null) await Svc.CreateModelAsync(req);
                 else await Svc.UpdateModelAsync(_editModel.Id, req);
-            }, "Model zapisany"))
+            }, L["providers.modelSaved"]))
         {
             _modelOpen = false;
             await Load();
@@ -296,12 +296,12 @@ else
 
     private async Task QuickAdd(ProviderDto p, string modelId)
     {
-        if (await Toasts.Try(() => Svc.CreateModelAsync(new UpsertModelRequest(p.Id, modelId)), $"Dodano {modelId}")) await Load();
+        if (await Toasts.Try(() => Svc.CreateModelAsync(new UpsertModelRequest(p.Id, modelId)), L["providers.added", modelId])) await Load();
     }
 
     private async Task ToggleProvider(ProviderDto p, bool enabled)
     {
-        if (await Toasts.Try(() => Svc.PatchProviderAsync(p.Id, new PatchProviderRequest(enabled)), $"{p.Name}: {(enabled ? "włączony" : "wyłączony")}"))
+        if (await Toasts.Try(() => Svc.PatchProviderAsync(p.Id, new PatchProviderRequest(enabled)), $"{p.Name}: {(enabled ? L["providers.on"] : L["providers.off"])}"))
             await Load();
     }
 
@@ -309,15 +309,15 @@ else
     {
         var msg = req.IsJudge switch
         {
-            true => $"{m.DisplayName} zakłada togę sędziego ⚖️",
-            false => $"{m.DisplayName} nie jest już sędzią",
-            _ => $"{m.DisplayName}: {(req.Enabled == true ? "włączony" : "wyłączony")}"
+            true => L["providers.judgeSet", m.DisplayName],
+            false => L["providers.judgeUnset", m.DisplayName],
+            _ => $"{m.DisplayName}: {(req.Enabled == true ? L["providers.on"] : L["providers.off"])}"
         };
         if (await Toasts.Try(() => Svc.PatchModelAsync(m.Id, req), msg)) await Load();
     }
 
     private async Task DeleteModel(ModelDto m)
     {
-        if (await Toasts.Try(() => Svc.DeleteModelAsync(m.Id), $"Usunięto {m.DisplayName}")) await Load();
+        if (await Toasts.Try(() => Svc.DeleteModelAsync(m.Id), L["providers.deleted", m.DisplayName])) await Load();
     }
 }

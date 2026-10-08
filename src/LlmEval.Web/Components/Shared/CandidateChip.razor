@@ -8,7 +8,7 @@
     /// <summary>Real model name, only passed when revealed.</summary>
     [Parameter] public string? Name { get; set; }
 
-    public static string Letter(string alias) => alias.Replace("Kandydat ", "");
+    public static string Letter(string alias) => alias;
     public static int Hue(string alias) => (Letter(alias)[0] - 'A') * 67 % 360 + 210;
 
     private string Css => Status switch
@@ -24,14 +24,14 @@
     {
         ResultStatus.Failed => "✕",
         ResultStatus.Pending or ResultStatus.Running => "…",
-        _ => Avg is null ? "—" : Fmt.Stars(Avg)
+        _ => Avg is null ? "—" : L.Stars(Avg)
     };
 
-    private string Tooltip => $"{Name ?? Alias}: " + Status switch
+    private string Tooltip => $"{Name ?? L["candidate", Alias]}: " + Status switch
     {
-        ResultStatus.Pending => "czeka w kolejce",
-        ResultStatus.Running => "generuje",
-        ResultStatus.Failed => "błąd",
-        _ => Avg is null ? "brak ocen" : $"{Fmt.Stars(Avg)}★" + (RatingCount is { } n ? $" ({n} ocen)" : "")
+        ResultStatus.Pending => L["batch.chip.pending"],
+        ResultStatus.Running => L["batch.chip.running"],
+        ResultStatus.Failed => L["batch.chip.failed"],
+        _ => Avg is null ? L["batch.chip.noRatings"] : $"{L.Stars(Avg)}★" + (RatingCount is { } n ? $" ({L.Plural("plural.ratings", n)})" : "")
     };
 }

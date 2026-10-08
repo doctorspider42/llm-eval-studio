@@ -58,7 +58,7 @@ public class CurrentUser(IJSRuntime js, EvalService svc)
     private ValueTask ApplyThemeAsync() => js.InvokeVoidAsync("document.documentElement.setAttribute", "data-theme", Theme);
 }
 
-public class Toaster
+public class Toaster(Localizer l)
 {
     public record Toast(Guid Id, string Message, bool IsError);
 
@@ -90,13 +90,9 @@ public class Toaster
             if (success is not null) Ok(success);
             return true;
         }
-        catch (EvalException ex)
-        {
-            Error(ex.Message);
-        }
         catch (Exception ex)
         {
-            Error($"Coś poszło nie tak:{ex.Message}");
+            Error(l.Error(ex));
         }
         return false;
     }

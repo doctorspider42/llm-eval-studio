@@ -7,11 +7,11 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
-<PageTitle>@(_it is null ? "Iteracja" : $"#{_it.Number} {_it.TestCaseTitle}") · LLM Eval</PageTitle>
+<PageTitle>@(_it is null ? L["iteration.title"] : $"#{_it.Number} {_it.TestCaseTitle}") · LLM Eval</PageTitle>
 
 @if (_notFound)
 {
-    <div class="card empty"><Icon Name="alert" Size="40" /><div>Ta iteracja nie istnieje.</div></div>
+    <div class="card empty"><Icon Name="alert" Size="40" /><div>@L["iteration.notFound"]</div></div>
 }
 else if (_it is null)
 {
@@ -27,26 +27,26 @@ else
     {
         var allMineDone = Me.User is not null && rateable > 0 && myRated == rateable;
         <div class="crumbs">
-            <a href="batches">Serie</a><Icon Name="chevron-right" Size="12" />
+            <a href="batches">@L["batch.list.title"]</a><Icon Name="chevron-right" Size="12" />
             <a href="batches/@nav.BatchId">@nav.BatchName</a><Icon Name="chevron-right" Size="12" />
-            <span>@_it.TestCaseTitle · powt. @nav.Repetition</span>
+            <span>@_it.TestCaseTitle · @L["iteration.crumbRep", nav.Repetition]</span>
         </div>
         <div class="series-bar">
             <Icon Name="list-checks" Size="16" />
             <a href="batches/@nav.BatchId" style="font-weight:600">@nav.BatchName</a>
-            <span class="pos">iteracja <b>@nav.Position</b>/@nav.Count · powtórzenie <b>@nav.Repetition</b>/@nav.Repetitions</span>
+            <span class="pos">@((MarkupString)L["iteration.seriesPos", nav.Position, nav.Count, nav.Repetition, nav.Repetitions])</span>
             <span class="grow"></span>
             <button class="btn btn-sm" disabled="@(nav.PrevIterationId is null)" @onclick='() => Nav.NavigateTo($"iterations/{nav.PrevIterationId}")'>
-                <Icon Name="arrow-left" Size="13" /> Poprzednia
+                <Icon Name="arrow-left" Size="13" /> @L["iteration.prev"]
             </button>
             <button class="btn btn-sm" disabled="@(nav.NextIterationId is null)" @onclick='() => Nav.NavigateTo($"iterations/{nav.NextIterationId}")'>
-                Następna <Icon Name="arrow-right" Size="13" />
+                @L["iteration.next"] <Icon Name="arrow-right" Size="13" />
             </button>
             @if (Me.User is not null)
             {
                 <button class="btn btn-sm @(allMineDone ? "btn-primary" : "")" @onclick="() => GoNextUnrated(nav.BatchId)"
-                        title="Przeskocz do następnej iteracji w serii, której jeszcze nie oceniłeś">
-                    <Icon Name="star" Size="13" /> @(allMineDone ? "Oceniona – dalej" : "Następna do oceny") <Icon Name="arrow-right" Size="13" />
+                        title="@L["iteration.nextUnratedTitle"]">
+                    <Icon Name="star" Size="13" /> @(allMineDone ? L["iteration.ratedNext"] : L["iteration.nextUnrated"]) <Icon Name="arrow-right" Size="13" />
                 </button>
             }
         </div>
@@ -54,9 +54,9 @@ else
     else
     {
         <div class="crumbs">
-            <a href="test-cases">Przypadki testowe</a><Icon Name="chevron-right" Size="12" />
+            <a href="test-cases">@L["iteration.crumbTestCases"]</a><Icon Name="chevron-right" Size="12" />
             <a href="test-cases/@_it.TestCaseId">@_it.TestCaseTitle</a><Icon Name="chevron-right" Size="12" />
-            <span>Iteracja #@_it.Number</span>
+            <span>@L["iteration.numbered", _it.Number]</span>
         </div>
     }
     <div class="page-header">
@@ -64,25 +64,25 @@ else
             <h1>@_it.TestCaseTitle <span class="faint" style="font-weight:400">#@_it.Number</span></h1>
             <div class="subtitle">
                 @if (_it.Note is not null) { <span>📝 @_it.Note · </span> }
-                @(_it.CreatedBy ?? "ktoś") · @Fmt.Date(_it.CreatedAt) ·
-                @if (!_it.IsComplete) { <span style="color:var(--accent-2)">generuje @done/@_it.Results.Count</span> }
-                else { <span>oceniłeś @myRated/@rateable</span> }
+                @(_it.CreatedBy ?? L["common.someone"]) · @L.Date(_it.CreatedAt) ·
+                @if (!_it.IsComplete) { <span style="color:var(--accent-2)">@L["iteration.generating", done, _it.Results.Count]</span> }
+                else { <span>@L["iteration.ratedByMe", myRated, rateable]</span> }
             </div>
         </div>
         <div class="actions">
             <div class="seg">
-                <button class="@(_cols ? "on" : "")" @onclick="() => _cols = true" title="Obok siebie"><Icon Name="columns" Size="14" /></button>
-                <button class="@(!_cols ? "on" : "")" @onclick="() => _cols = false" title="Jedna pod drugą"><Icon Name="rows" Size="14" /></button>
+                <button class="@(_cols ? "on" : "")" @onclick="() => _cols = true" title="@L["iteration.sideBySide"]"><Icon Name="columns" Size="14" /></button>
+                <button class="@(!_cols ? "on" : "")" @onclick="() => _cols = false" title="@L["iteration.stacked"]"><Icon Name="rows" Size="14" /></button>
             </div>
             <div class="seg">
                 <button class="@(_raw ? "" : "on")" @onclick="() => _raw = false">Markdown</button>
                 <button class="@(_raw ? "on" : "")" @onclick="() => _raw = true">Raw</button>
             </div>
-            <button class="btn btn-ghost btn-danger btn-icon" title="Usuń iterację" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
+            <button class="btn btn-ghost btn-danger btn-icon" title="@L["iteration.delete"]" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
             <div class="dropdown">
                 <button class="btn" disabled="@(!_it.IsComplete || rateable == 0)" @onclick="OpenJudgeMenu"
-                        title="@(_it.IsComplete ? "Model-sędzia oceni odpowiedzi na ślepo" : "Poczekaj, aż wszystkie modele skończą")">
-                    <Icon Name="scale" /> Oceń przez AI <Icon Name="chevron-down" Size="13" />
+                        title="@(_it.IsComplete ? L["iteration.judgeTitle"] : L["iteration.judgeWait"])">
+                    <Icon Name="scale" /> @L["iteration.judgeAi"] <Icon Name="chevron-down" Size="13" />
                 </button>
                 @if (_judgeOpen)
                 {
@@ -91,13 +91,12 @@ else
                         @if (_judges.Count == 0)
                         {
                             <div style="padding:10px" class="small muted">
-                                Nie ma jeszcze żadnego sędziego. Oznacz model jako <b>Sędzia AI</b> na stronie
-                                <a href="providers" style="text-decoration:underline">providerów</a>.
+                                @((MarkupString)L["iteration.noJudges"])
                             </div>
                         }
                         else
                         {
-                            <div class="small faint" style="padding:6px 10px">Kto ma oceniać? Sędzia nie wie, który model jest który.</div>
+                            <div class="small faint" style="padding:6px 10px">@L["iteration.whoJudges"]</div>
                             @foreach (var j in _judges)
                             {
                                 <button class="dropdown-item @(_judgeSel.Contains(j.Id) ? "on" : "")" @onclick="() => ToggleJudge(j.Id)">
@@ -109,7 +108,7 @@ else
                             <div class="dropdown-sep"></div>
                             <div style="padding:4px">
                                 <button class="btn btn-primary btn-sm" style="width:100%" disabled="@(_judgeSel.Count == 0)" @onclick="RunJudges">
-                                    <Icon Name="zap" Size="14" /> Oceń (@_judgeSel.Count)
+                                    <Icon Name="zap" Size="14" /> @L["iteration.judgeRun", _judgeSel.Count]
                                 </button>
                             </div>
                         }
@@ -117,7 +116,7 @@ else
                 }
             </div>
             <button class="btn @(_reveal ? "" : "btn-primary")" @onclick="ToggleReveal">
-                <Icon Name="@(_reveal ? "eye-off" : "eye")" /> @(_reveal ? "Ukryj modele" : "Odkryj modele")
+                <Icon Name="@(_reveal ? "eye-off" : "eye")" /> @(_reveal ? L["common.hide"] : L["common.reveal"])
             </button>
         </div>
     </div>
@@ -130,18 +129,18 @@ else
     @if (_it.JudgeRuns.Count > 0)
     {
         <div class="judge-runs" style="margin:-6px 0 16px">
-            <span class="small faint row" style="gap:6px"><Icon Name="scale" Size="13" /> Sędziowie AI:</span>
+            <span class="small faint row" style="gap:6px"><Icon Name="scale" Size="13" /> @L["iteration.judges"]</span>
             @foreach (var j in _it.JudgeRuns.GroupBy(j => j.ModelId).Select(g => g.Last()))
             {
-                <span class="judge-run @j.Status.ToString().ToLowerInvariant()" title="@(j.Error ?? (j.Status == ResultStatus.Completed ? $"Ocenił w {Fmt.Ms(j.LatencyMs)}" : null))">
+                <span class="judge-run @j.Status.ToString().ToLowerInvariant()" title="@(j.Error ?? (j.Status == ResultStatus.Completed ? L["iteration.judgedIn", L.Ms(j.LatencyMs)] : null))">
                     <ProviderIcon Type="j.ProviderType" Size="20" />
                     @j.ModelName
                     @switch (j.Status)
                     {
-                        case ResultStatus.Pending: <span class="faint">w kolejce</span> break;
+                        case ResultStatus.Pending: <span class="faint">@L["iteration.judgeQueued"]</span> break;
                         case ResultStatus.Running: <span class="typing"><i></i><i></i><i></i></span> break;
-                        case ResultStatus.Completed: <span style="color:var(--ok)">✓ @Fmt.Ms(j.LatencyMs)@(j.Error is null ? "" : " ⚠")</span> break;
-                        default: <span style="color:var(--err)">✕ błąd</span> break;
+                        case ResultStatus.Completed: <span style="color:var(--ok)">✓ @L.Ms(j.LatencyMs)@(j.Error is null ? "" : " ⚠")</span> break;
+                        default: <span style="color:var(--err)">✕ @L["iteration.judgeFailed"]</span> break;
                     }
                 </span>
             }
@@ -151,14 +150,14 @@ else
     @if (_it.ExpectedAnswer is not null)
     {
         <details class="card expected-card" style="margin-bottom:12px;padding:14px 18px">
-            <summary style="cursor:pointer" class="row"><Icon Name="check" /> <b>Oczekiwana odpowiedź</b>
-                <span class="faint small">– modele jej nie widziały; sędzia AI porównuje z nią odpowiedzi</span></summary>
+            <summary style="cursor:pointer" class="row"><Icon Name="check" /> <b>@L["iteration.expected"]</b>
+                <span class="faint small">@L["iteration.expectedHint"]</span></summary>
             <div style="margin-top:12px"><Markdown Text="@_it.ExpectedAnswer" /></div>
         </details>
     }
 
     <details class="card" style="margin-bottom:18px;padding:14px 18px">
-        <summary style="cursor:pointer" class="row muted"><Icon Name="message" /> Co poszło do modeli <span class="faint small">(@(_it.UserMessage.Length.ToString("N0")) znaków)</span></summary>
+        <summary style="cursor:pointer" class="row muted"><Icon Name="message" /> @L["iteration.prompt"] <span class="faint small">(@L.Plural("plural.chars", _it.UserMessage.Length))</span></summary>
         <div style="margin-top:12px" class="stack">
             @if (_it.SystemPrompt is not null)
             {
@@ -179,19 +178,19 @@ else
                 <div class="result-head">
                     <span class="slot" style="--h:@Fmt.SlotHue(r.Slot)">@r.Slot</span>
                     <div class="grow" style="min-width:0">
-                        <div class="result-label">@r.Label</div>
+                        <div class="result-label">@L["modelSlot", r.Slot]</div>
                         @if (r.Model is { } m)
                         {
                             <div class="reveal-name row" style="gap:6px"><ProviderIcon Type="m.ProviderType" Size="16" /> <b>@m.DisplayName</b> <span class="faint mono">@m.ModelId</span></div>
                         }
                         else
                         {
-                            <div class="small faint">model ukryty</div>
+                            <div class="small faint">@L["iteration.modelHidden"]</div>
                         }
                     </div>
                     @if (r.AvgStars is not null)
                     {
-                        <span class="score" title="Średnia wszystkich ocen">@Fmt.Stars(r.AvgStars) <Icon Name="star" Size="13" Filled Stroke="0" Class="star-ico" /></span>
+                        <span class="score" title="@L["iteration.avgTitle"]">@L.Stars(r.AvgStars) <Icon Name="star" Size="13" Filled Stroke="0" Class="star-ico" /></span>
                     }
                     <StatusBadge Status="r.Status" />
                 </div>
@@ -201,7 +200,7 @@ else
                     {
                         case ResultStatus.Pending:
                         case ResultStatus.Running:
-                            <div class="row muted" style="margin-bottom:10px"><span class="typing"><i></i><i></i><i></i></span> @(r.Status == ResultStatus.Pending ? "czeka w kolejce" : "model myśli…")</div>
+                            <div class="row muted" style="margin-bottom:10px"><span class="typing"><i></i><i></i><i></i></span> @(r.Status == ResultStatus.Pending ? L["iteration.pending"] : L["iteration.thinking"])</div>
                             <div class="skeleton" style="width:92%"></div><div class="skeleton" style="width:78%"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:40%"></div>
                             break;
                         case ResultStatus.Failed:
@@ -215,24 +214,24 @@ else
                 </div>
 
                 <div class="result-meta">
-                    <span title="Czas odpowiedzi"><Icon Name="clock" Size="12" /> @Fmt.Ms(r.LatencyMs)</span>
+                    <span title="@L["iteration.latency"]"><Icon Name="clock" Size="12" /> @L.Ms(r.LatencyMs)</span>
                     @if (r.InputTokens is not null || r.OutputTokens is not null)
                     {
-                        <span title="Tokeny wejście → wyjście"><Icon Name="hash" Size="12" /> @(r.InputTokens?.ToString("N0") ?? "?") → @(r.OutputTokens?.ToString("N0") ?? "?")</span>
+                        <span title="@L["iteration.tokens"]"><Icon Name="hash" Size="12" /> @(r.InputTokens is { } tin ? L.Num(tin) : "?") → @(r.OutputTokens is { } tout ? L.Num(tout) : "?")</span>
                     }
                     @if (r.Output is not null)
                     {
-                        <span>@r.Output.Length.ToString("N0") znaków</span>
+                        <span>@L.Plural("plural.chars", r.Output.Length)</span>
                     }
                     <span class="grow"></span>
                     @if (r.Status == ResultStatus.Completed)
                     {
-                        <button class="btn btn-ghost btn-sm btn-icon" title="Rozwiń / zwiń" @onclick="() => ToggleExpand(r.Id)"><Icon Name="maximize" Size="13" /></button>
-                        <button class="btn btn-ghost btn-sm btn-icon" title="Kopiuj" @onclick="() => Copy(r.Output)"><Icon Name="copy" Size="13" /></button>
+                        <button class="btn btn-ghost btn-sm btn-icon" title="@L["iteration.expand"]" @onclick="() => ToggleExpand(r.Id)"><Icon Name="maximize" Size="13" /></button>
+                        <button class="btn btn-ghost btn-sm btn-icon" title="@L["common.copy"]" @onclick="() => Copy(r.Output)"><Icon Name="copy" Size="13" /></button>
                     }
                     @if (r.Status is ResultStatus.Completed or ResultStatus.Failed)
                     {
-                        <button class="btn btn-ghost btn-sm btn-icon" title="Uruchom ponownie (kasuje oceny tej odpowiedzi)" @onclick="() => Retry(r)"><Icon Name="refresh" Size="13" /></button>
+                        <button class="btn btn-ghost btn-sm btn-icon" title="@L["iteration.retryTitle"]" @onclick="() => Retry(r)"><Icon Name="refresh" Size="13" /></button>
                     }
                 </div>
 
@@ -242,14 +241,14 @@ else
                         @if (Me.User is not null)
                         {
                             <div class="row">
-                                <span class="small muted grow">@(mine is null ? "Twoja ocena" : "Twoja ocena ✓")</span>
+                                <span class="small muted grow">@(mine is null ? L["iteration.yourRating"] : L["iteration.yourRating"] + " ✓")</span>
                                 <StarRating Value="draft.Stars" ValueChanged="n => RateStars(r, n)" Size="22" />
                             </div>
                             <div class="row" style="align-items:flex-end">
-                                <textarea class="textarea grow" rows="2" style="min-height:44px" placeholder="Komentarz – co było dobre, co do bani?"
+                                <textarea class="textarea grow" rows="2" style="min-height:44px" placeholder="@L["iteration.commentPlaceholder"]"
                                           @bind="draft.Comment" @bind:event="oninput"></textarea>
                                 <button class="btn btn-sm" disabled="@(draft.Stars == 0 || draft.Comment == mine?.Comment)" @onclick="() => SaveComment(r)"
-                                        title="@(draft.Stars == 0 ? "Najpierw daj gwiazdki" : "Zapisz komentarz")"><Icon Name="check" Size="14" /></button>
+                                        title="@(draft.Stars == 0 ? L["iteration.starsFirst"] : L["iteration.saveComment"])"><Icon Name="check" Size="14" /></button>
                             </div>
                         }
 
@@ -264,9 +263,9 @@ else
                                         <div class="comment-body">
                                             <div class="row" style="gap:8px">
                                                 <b class="small">@o.UserName</b>
-                                                @if (o.UserIsAiJudge) { <span class="badge badge-ai" style="padding:1px 7px;font-size:10.5px">sędzia AI</span> }
+                                                @if (o.UserIsAiJudge) { <span class="badge badge-ai" style="padding:1px 7px;font-size:10.5px">@L["iteration.aiJudgeBadge"]</span> }
                                                 <StarRating Value="o.Stars" ReadOnly Size="12" />
-                                                <span class="small faint">@Fmt.Ago(o.UpdatedAt)</span>
+                                                <span class="small faint">@L.Ago(o.UpdatedAt)</span>
                                             </div>
                                             @if (o.Comment is not null) { <div class="comment-text small">@o.Comment</div> }
                                         </div>
@@ -280,11 +279,11 @@ else
         }
     </div>
 
-    <Modal @bind-Open="_confirmDelete" Title="Usunąć iterację?" Icon="trash">
-        <ChildContent><div class="muted">Wszystkie odpowiedzi i oceny z tej iteracji polecą w kosmos.</div></ChildContent>
+    <Modal @bind-Open="_confirmDelete" Title="@L["iteration.deleteConfirm"]" Icon="trash">
+        <ChildContent><div class="muted">@L["iteration.deleteBody"]</div></ChildContent>
         <Footer>
-            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">Anuluj</button>
-            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> Usuń</button>
+            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">@L["common.cancel"]</button>
+            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> @L["common.delete"]</button>
         </Footer>
     </Modal>
 }
@@ -358,7 +357,7 @@ else
     private async Task SaveComment(ResultDto r)
     {
         var d = Draft(r);
-        await Toasts.Try(() => Svc.RateAsync(r.Id, new RateResultRequest(Me.User!.Id, d.Stars, d.Comment)), "Komentarz zapisany");
+        await Toasts.Try(() => Svc.RateAsync(r.Id, new RateResultRequest(Me.User!.Id, d.Stars, d.Comment)), L["iteration.commentSaved"]);
     }
 
     private async Task OpenJudgeMenu()
@@ -379,14 +378,14 @@ else
     {
         _judgeOpen = false;
         await Toasts.Try(() => Svc.JudgeIterationAsync(Id, new JudgeIterationRequest(_judgeSel.ToList(), Me.User?.Id)),
-            _judgeSel.Count == 1 ? "Sędzia zakłada togę i czyta odpowiedzi…" : $"{_judgeSel.Count} sędziów zabiera się do roboty…");
+            _judgeSel.Count == 1 ? L["iteration.judgeStartedOne"] : L["iteration.judgeStartedMany", _judgeSel.Count]);
     }
 
     private async Task GoNextUnrated(Guid batchId)
     {
         var next = await Svc.NextUnratedInBatchAsync(batchId, Me.User!.Id, Id);
         if (next is { } it) Nav.NavigateTo($"iterations/{it}");
-        else Toasts.Ok("Cała seria oceniona – wracam do podsumowania 🎉");
+        else Toasts.Ok(L["iteration.batchDone"]);
         if (next is null) Nav.NavigateTo($"batches/{batchId}");
     }
 
@@ -404,16 +403,16 @@ else
     private async Task Copy(string? text)
     {
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", text ?? "");
-        Toasts.Ok("Skopiowane");
+        Toasts.Ok(L["common.copied"]);
     }
 
     private async Task Retry(ResultDto r) =>
-        await Toasts.Try(() => Svc.RetryResultAsync(r.Id), $"{r.Label} leci jeszcze raz");
+        await Toasts.Try(() => Svc.RetryResultAsync(r.Id), L["iteration.retried", L["modelSlot", r.Slot]]);
 
     private async Task Delete()
     {
         var tc = _it!.TestCaseId;
-        if (await Toasts.Try(() => Svc.DeleteIterationAsync(Id), "Iteracja usunięta")) Nav.NavigateTo($"test-cases/{tc}");
+        if (await Toasts.Try(() => Svc.DeleteIterationAsync(Id), L["iteration.deleted"])) Nav.NavigateTo($"test-cases/{tc}");
     }
 
     private void OnIterationChanged(Guid iterationId)

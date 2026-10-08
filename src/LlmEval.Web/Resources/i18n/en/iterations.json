@@ -1,0 +1,11 @@
+{
+  "iterations.title": "Iterations",
+  "iterations.subtitle": "Every run, newest first.",
+  "iterations.filter.all": "All",
+  "iterations.filter.unrated": "Waiting on my rating",
+  "iterations.empty.allRated": "All rated. Respect.",
+  "iterations.empty.none": "No iterations yet.",
+  "iterations.row.title": "Iteration #{0}",
+  "iterations.row.repetition": "rep {0}",
+  "iterations.row.failed": "Failed answers"
+}

@@ -3,10 +3,10 @@
     <span class="dot"></span>
     @(Status switch
     {
-        ResultStatus.Pending => "W kolejce",
-        ResultStatus.Running => "Generuje…",
-        ResultStatus.Completed => "Gotowe",
-        _ => "Błąd"
+        ResultStatus.Pending => L["status.pending"],
+        ResultStatus.Running => L["status.running"],
+        ResultStatus.Completed => L["status.completed"],
+        _ => L["status.failed"]
     })
 </span>
 

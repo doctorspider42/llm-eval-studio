@@ -4,26 +4,26 @@
 @inject EvalEvents Events
 @inject NavigationManager Nav
 
-<PageTitle>Przypadki testowe · LLM Eval</PageTitle>
+<PageTitle>@L["testcases.title"] · LLM Eval</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1>Przypadki testowe</h1>
-        <div class="subtitle">Prompt + dane = przypadek. Zaznacz kilka (☐ w rogu karty), żeby odpalić je razem jako serię.</div>
+        <h1>@L["testcases.title"]</h1>
+        <div class="subtitle">@L["testcases.subtitle"]</div>
     </div>
     <div class="actions">
-        <button class="btn" @onclick="() => _importOpen = true"><Icon Name="file" /> Import</button>
-        <button class="btn" @onclick="() => _batchOpen = true"><Icon Name="list-checks" /> Nowa seria</button>
-        <button class="btn btn-primary" @onclick="() => _editorOpen = true"><Icon Name="plus" /> Nowy przypadek</button>
+        <button class="btn" @onclick="() => _importOpen = true"><Icon Name="file" /> @L["testcases.import"]</button>
+        <button class="btn" @onclick="() => _batchOpen = true"><Icon Name="list-checks" /> @L["testcases.newBatch"]</button>
+        <button class="btn btn-primary" @onclick="() => _editorOpen = true"><Icon Name="plus" /> @L["testcases.new"]</button>
     </div>
 </div>
 
 <div class="row wrap" style="margin-bottom:18px">
     <div class="search" style="width:340px;max-width:100%">
         <Icon Name="search" />
-        <input class="input" placeholder="Szukaj w tytułach i promptach…" @bind="_search" @bind:event="oninput" @bind:after="Reload" />
+        <input class="input" placeholder="@L["testcases.search"]" @bind="_search" @bind:event="oninput" @bind:after="Reload" />
     </div>
-    <button class="chip @(_tag is null ? "on" : "")" @onclick="() => SetTag(null)">wszystkie</button>
+    <button class="chip @(_tag is null ? "on" : "")" @onclick="() => SetTag(null)">@L["testcases.allTags"]</button>
     @foreach (var t in _tags)
     {
         <button class="chip @(_tag == t ? "on" : "")" @onclick="() => SetTag(t)"><Icon Name="tag" Size="11" /> @t</button>
@@ -36,7 +36,7 @@
 }
 else if (_items.Count == 0)
 {
-    <div class="card empty"><Icon Name="flask" Size="44" /><div>Nic tu nie ma. Dodaj pierwszy przypadek albo zmień filtr.</div></div>
+    <div class="card empty"><Icon Name="flask" Size="44" /><div>@L["testcases.empty"]</div></div>
 }
 else
 {
@@ -46,14 +46,14 @@ else
             var sel = _selected.Contains(t.Id);
             <div class="card card-hover fade-in stack @(sel ? "selected" : "")" style="gap:10px"
                  @onclick='() => { if (_selected.Count > 0) ToggleSel(t.Id); else Nav.NavigateTo($"test-cases/{t.Id}"); }'>
-                <span class="sel-box @(sel ? "on" : "")" title="Zaznacz do serii" @onclick="() => ToggleSel(t.Id)" @onclick:stopPropagation="true">
+                <span class="sel-box @(sel ? "on" : "")" title="@L["testcases.selectForBatch"]" @onclick="() => ToggleSel(t.Id)" @onclick:stopPropagation="true">
                     <Icon Name="check" Size="13" Stroke="3" />
                 </span>
                 <div class="row" style="align-items:flex-start;padding-right:28px">
                     <h3 class="grow" style="font-size:16px">@t.Title</h3>
                     @if (t.AvgStars is not null)
                     {
-                        <span class="score" style="white-space:nowrap">@Fmt.Stars(t.AvgStars) <Icon Name="star" Size="13" Filled Stroke="0" Class="star-ico" /></span>
+                        <span class="score" style="white-space:nowrap">@L.Stars(t.AvgStars) <Icon Name="star" Size="13" Filled Stroke="0" Class="star-ico" /></span>
                     }
                 </div>
                 <div class="muted small clamp-3">@t.PromptPreview</div>
@@ -61,9 +61,9 @@ else
                     @foreach (var tag in t.Tags) { <span class="tag">@tag</span> }
                 </div>
                 <div class="row small faint">
-                    <Icon Name="layers" Size="13" /> @t.IterationCount iteracji
+                    <Icon Name="layers" Size="13" /> @L.Plural("plural.iterations", t.IterationCount)
                     <span class="grow"></span>
-                    @(t.LastRunAt is null ? "nigdy nie odpalony" : $"ostatnio {Fmt.Ago(t.LastRunAt)}")
+                    @(t.LastRunAt is null ? L["testcases.neverRun"] : L["testcases.lastRun", L.Ago(t.LastRunAt)])
                 </div>
             </div>
         }
@@ -73,10 +73,10 @@ else
 @if (_selected.Count > 0)
 {
     <div class="action-bar">
-        <span><b>@_selected.Count</b> <span class="muted">zaznaczonych</span></span>
-        <button class="btn btn-sm btn-ghost" @onclick="SelectAllVisible">Zaznacz wszystkie widoczne (@(_items?.Count ?? 0))</button>
-        <button class="btn btn-sm btn-ghost" @onclick="() => _selected.Clear()">Odznacz</button>
-        <button class="btn btn-primary" @onclick="() => _batchOpen = true"><Icon Name="list-checks" /> Odpal serię</button>
+        <span><b>@_selected.Count</b> <span class="muted">@L["testcases.selected"]</span></span>
+        <button class="btn btn-sm btn-ghost" @onclick="SelectAllVisible">@L["testcases.selectAllVisible", _items?.Count ?? 0]</button>
+        <button class="btn btn-sm btn-ghost" @onclick="() => _selected.Clear()">@L["testcases.deselect"]</button>
+        <button class="btn btn-primary" @onclick="() => _batchOpen = true"><Icon Name="list-checks" /> @L["testcases.runBatch"]</button>
     </div>
 }
 

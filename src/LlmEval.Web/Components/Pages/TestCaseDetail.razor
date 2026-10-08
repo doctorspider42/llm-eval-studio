@@ -5,11 +5,11 @@
 @inject Toaster Toasts
 @inject NavigationManager Nav
 
-<PageTitle>@(_tc?.Title ?? "Przypadek") · LLM Eval</PageTitle>
+<PageTitle>@(_tc?.Title ?? L["testcases.case.pageTitle"]) · LLM Eval</PageTitle>
 
 @if (_notFound)
 {
-    <div class="card empty"><Icon Name="alert" Size="40" /><div>Ten przypadek nie istnieje.</div><a class="btn" href="test-cases" style="margin-top:12px">Wróć</a></div>
+    <div class="card empty"><Icon Name="alert" Size="40" /><div>@L["testcases.case.notFound"]</div><a class="btn" href="test-cases" style="margin-top:12px">@L["common.back"]</a></div>
 }
 else if (_tc is null)
 {
@@ -17,58 +17,58 @@ else if (_tc is null)
 }
 else
 {
-    <div class="crumbs"><a href="test-cases">Przypadki testowe</a><Icon Name="chevron-right" Size="12" /><span>@_tc.Title</span></div>
+    <div class="crumbs"><a href="test-cases">@L["testcases.title"]</a><Icon Name="chevron-right" Size="12" /><span>@_tc.Title</span></div>
     <div class="page-header">
         <div style="min-width:0">
             <h1>@_tc.Title</h1>
             <div class="row wrap" style="margin-top:10px;gap:6px">
                 @foreach (var tag in _tc.Tags) { <span class="tag">@tag</span> }
-                <span class="small faint">@(_tc.CreatedBy is null ? "" : $"{_tc.CreatedBy} · ")utworzony @Fmt.Ago(_tc.CreatedAt)</span>
+                <span class="small faint">@(_tc.CreatedBy is null ? "" : $"{_tc.CreatedBy} · ")@L["testcases.case.created", L.Ago(_tc.CreatedAt)]</span>
             </div>
         </div>
         <div class="actions">
             <button class="btn btn-ghost btn-danger" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
-            <button class="btn" @onclick="() => _editorOpen = true"><Icon Name="pencil" /> Edytuj</button>
-            <button class="btn btn-primary" @onclick="() => _runOpen = true"><Icon Name="play" /> Odpal iterację</button>
+            <button class="btn" @onclick="() => _editorOpen = true"><Icon Name="pencil" /> @L["common.edit"]</button>
+            <button class="btn btn-primary" @onclick="() => _runOpen = true"><Icon Name="play" /> @L["testcases.case.runIteration"]</button>
         </div>
     </div>
 
     <div class="grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:start">
         <div class="stack" style="gap:16px">
             <div class="card">
-                <div class="card-title"><Icon Name="message" /> Prompt</div>
+                <div class="card-title"><Icon Name="message" /> @L["testcases.case.prompt"]</div>
                 <div style="white-space:pre-wrap">@_tc.Prompt</div>
                 @if (_tc.SystemPrompt is not null)
                 {
                     <div class="divider"></div>
-                    <div class="card-title" style="margin-bottom:8px">System prompt</div>
+                    <div class="card-title" style="margin-bottom:8px">@L["testcases.case.systemPrompt"]</div>
                     <div class="muted" style="white-space:pre-wrap">@_tc.SystemPrompt</div>
                 }
             </div>
             @if (_tc.ExpectedAnswer is not null)
             {
                 <div class="card expected-card">
-                    <div class="card-title"><Icon Name="check" /> Oczekiwana odpowiedź <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">· niewidoczna dla modeli, widzi ją sędzia</span></div>
+                    <div class="card-title"><Icon Name="check" /> @L["testcases.case.expected"] <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">· @L["testcases.case.expectedHidden"]</span></div>
                     <div style="white-space:pre-wrap">@_tc.ExpectedAnswer</div>
                 </div>
             }
             @if (_tc.Data is not null)
             {
                 <div class="card">
-                    <div class="card-title"><Icon Name="file" /> Dane <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">· @_tc.Data.Length.ToString("N0") znaków</span></div>
+                    <div class="card-title"><Icon Name="file" /> @L["testcases.case.data"] <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">· @L.Plural("testcases.chars", _tc.Data.Length)</span></div>
                     <pre class="pre-block">@_tc.Data</pre>
                 </div>
             }
         </div>
 
         <div class="card">
-            <div class="card-title"><Icon Name="layers" /> Iteracje <span class="grow"></span><span class="faint">@_tc.Iterations.Count</span></div>
+            <div class="card-title"><Icon Name="layers" /> @L["testcases.case.iterations"] <span class="grow"></span><span class="faint">@_tc.Iterations.Count</span></div>
             @if (_tc.Iterations.Count == 0)
             {
                 <div class="empty">
                     <Icon Name="zap" Size="40" />
-                    <div>Jeszcze nie odpalony.</div>
-                    <button class="btn btn-primary" style="margin-top:14px" @onclick="() => _runOpen = true"><Icon Name="play" /> Odpal pierwszą iterację</button>
+                    <div>@L["testcases.case.notRunYet"]</div>
+                    <button class="btn btn-primary" style="margin-top:14px" @onclick="() => _runOpen = true"><Icon Name="play" /> @L["testcases.case.runFirst"]</button>
                 </div>
             }
             else
@@ -83,13 +83,13 @@ else
     <TestCaseEditor @bind-Open="_editorOpen" Existing="_tc" OnSaved="t => _tc = t" />
     <RunIterationDialog @bind-Open="_runOpen" TestCaseId="_tc.Id" OnStarted='it => Nav.NavigateTo($"iterations/{it.Id}")' />
 
-    <Modal @bind-Open="_confirmDelete" Title="Usunąć przypadek?" Icon="trash">
+    <Modal @bind-Open="_confirmDelete" Title="@L["testcases.case.deleteTitle"]" Icon="trash">
         <ChildContent>
-            <div class="muted">Polecą też wszystkie iteracje (@_tc.Iterations.Count) i oceny. Nie da się tego cofnąć.</div>
+            <div class="muted">@L["testcases.case.deleteBody", _tc.Iterations.Count]</div>
         </ChildContent>
         <Footer>
-            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">Anuluj</button>
-            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> Usuń na zawsze</button>
+            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">@L["common.cancel"]</button>
+            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> @L["testcases.case.deleteForever"]</button>
         </Footer>
     </Modal>
 }
@@ -115,7 +115,7 @@ else
 
     private async Task Delete()
     {
-        if (await Toasts.Try(() => Svc.DeleteTestCaseAsync(Id), "Usunięto")) Nav.NavigateTo("test-cases");
+        if (await Toasts.Try(() => Svc.DeleteTestCaseAsync(Id), L["testcases.case.deleted"])) Nav.NavigateTo("test-cases");
     }
 
     private bool _reloadPending;

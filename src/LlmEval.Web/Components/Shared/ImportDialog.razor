@@ -3,14 +3,14 @@
 @inject Toaster Toasts
 @inject CurrentUser Me
 
-<Modal Open="Open" OpenChanged="OpenChanged" Title="Import przypadków testowych" Icon="file" Wide>
+<Modal Open="Open" OpenChanged="OpenChanged" Title="@L["import.title"]" Icon="file" Wide>
     <ChildContent>
         @* ── 1. source ── *@
         <section>
             <div class="row" style="margin-bottom:12px">
-                <span class="section-num">1</span><b class="grow">Skąd</b>
+                <span class="section-num">1</span><b class="grow">@L["import.source"]</b>
                 <div class="seg">
-                    <button class="@(_source == "file" ? "on" : "")" @onclick='() => _source = "file"'><Icon Name="file" Size="13" /> Plik / wklej</button>
+                    <button class="@(_source == "file" ? "on" : "")" @onclick='() => _source = "file"'><Icon Name="file" Size="13" /> @L["import.fileOrPaste"]</button>
                     <button class="@(_source == "hf" ? "on" : "")" @onclick='() => _source = "hf"'>🤗 Hugging Face</button>
                 </div>
             </div>
@@ -20,25 +20,25 @@
                 <div class="stack" style="gap:10px">
                     <div class="row wrap">
                         <label class="btn">
-                            <Icon Name="file" /> Wybierz plik .json / .jsonl
+                            <Icon Name="file" /> @L["import.pickFile"]
                             <InputFile OnChange="OnFile" accept=".json,.jsonl,.ndjson,.txt" style="display:none" />
                         </label>
                         @if (_fileName is not null)
                         {
-                            <span class="chip on"><Icon Name="file" Size="11" /> @_fileName · @(_text?.Length.ToString("N0")) znaków</span>
+                            <span class="chip on"><Icon Name="file" Size="11" /> @_fileName · @L.Plural("testcases.chars", _text?.Length ?? 0)</span>
                             <button class="btn btn-sm btn-ghost" @onclick="ClearFile"><Icon Name="x" Size="13" /></button>
                         }
                         else
                         {
-                            <span class="small faint">albo wklej poniżej</span>
+                            <span class="small faint">@L["import.orPaste"]</span>
                         }
                     </div>
                     @if (_fileName is null)
                     {
                         <textarea class="textarea mono" rows="6" @bind="_text"
-                                  placeholder='[{"title":"…","prompt":"…","data":"…","expectedAnswer":"…","tags":["…"]}]&#10;albo JSONL – jeden obiekt na linię. Kolumny o innych nazwach zmapujesz w kroku 2.'></textarea>
+                                  placeholder="@PastePlaceholder"></textarea>
                     }
-                    <div><button class="btn btn-primary btn-sm" disabled="@string.IsNullOrWhiteSpace(_text)" @onclick="LoadText"><Icon Name="arrow-right" Size="13" /> Wczytaj wiersze</button></div>
+                    <div><button class="btn btn-primary btn-sm" disabled="@string.IsNullOrWhiteSpace(_text)" @onclick="LoadText"><Icon Name="arrow-right" Size="13" /> @L["import.loadRows"]</button></div>
                 </div>
             }
             else
@@ -49,27 +49,27 @@
                         <div class="card card-hover @(_dataset == p.Dataset ? "selected" : "")" style="padding:12px 14px" @onclick="() => ApplyPreset(p)">
                             <div class="row"><b class="grow">@p.Label</b><span class="tag">@p.License</span></div>
                             <div class="small faint mono">@p.Dataset</div>
-                            <div class="small muted" style="margin-top:6px">@p.Description</div>
+                            <div class="small muted" style="margin-top:6px">@L[$"import.preset.{p.Label.ToLowerInvariant()}"]</div>
                         </div>
                     }
                 </div>
                 <div class="grid" style="grid-template-columns:2fr 1.2fr 1fr .7fr .7fr auto;gap:8px;align-items:end">
-                    <div class="field"><label>Dataset</label><input class="input mono" @bind="_dataset" @bind:after="OnDatasetChanged" placeholder="org/nazwa" /></div>
+                    <div class="field"><label>@L["import.dataset"]</label><input class="input mono" @bind="_dataset" @bind:after="OnDatasetChanged" placeholder="@L["import.datasetPh"]" /></div>
                     <div class="field">
-                        <label>Config / split</label>
+                        <label>@L["import.configSplit"]</label>
                         <select class="select" @bind="_splitKey">
-                            @if (_splits.Count == 0) { <option value="">(sprawdź dataset)</option> }
+                            @if (_splits.Count == 0) { <option value="">@L["import.checkDataset"]</option> }
                             @foreach (var sp in _splits) { <option value="@($"{sp.Config}|{sp.Split}")">@sp.Config / @sp.Split</option> }
                         </select>
                     </div>
-                    <div class="field"><label>Od wiersza</label><input class="input" type="number" min="0" @bind="_offset" /></div>
-                    <div class="field"><label>Ile</label><input class="input" type="number" min="1" max="2000" @bind="_length" /></div>
+                    <div class="field"><label>@L["import.offset"]</label><input class="input" type="number" min="0" @bind="_offset" /></div>
+                    <div class="field"><label>@L["import.length"]</label><input class="input" type="number" min="1" max="2000" @bind="_length" /></div>
                     <div></div>
                     <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_dataset) || _busy)" @onclick="LoadHf">
-                        <Icon Name="@(_busy ? "loader" : "arrow-right")" Class="@(_busy ? "spin" : null)" Size="14" /> Wczytaj
+                        <Icon Name="@(_busy ? "loader" : "arrow-right")" Class="@(_busy ? "spin" : null)" Size="14" /> @L["import.load"]
                     </button>
                 </div>
-                <div class="hint" style="margin-top:6px">Wiersze pobierane z publicznego API datasets-server Hugging Face (max 2000 naraz). Sprawdź licencję zbioru na jego karcie.</div>
+                <div class="hint" style="margin-top:6px">@L["import.hfHint"]</div>
             }
         </section>
 
@@ -81,10 +81,10 @@
             <section>
                 <div class="row" style="margin-bottom:10px">
                     <span class="section-num">2</span>
-                    <b class="grow">Mapowanie <span class="faint" style="font-weight:400">· @_rows.Count wierszy</span></b>
+                    <b class="grow">@L["import.mapping"] <span class="faint" style="font-weight:400">· @L.Plural("import.rows", _rows.Count)</span></b>
                 </div>
                 <div class="small muted" style="margin-bottom:8px">
-                    Kliknij kolumnę, żeby wstawić <code class="kbd">{{kolumna}}</code> do aktywnego pola (<b>@FieldLabel(_active)</b>). Możesz dopisać własny tekst wokół.
+                    @L["import.mappingHint1"] <code class="kbd">{{@L["import.column"]}}</code> @L["import.mappingHint2"] (<b>@FieldLabel(_active)</b>). @L["import.mappingHint3"]
                 </div>
                 <div class="row wrap" style="gap:6px;margin-bottom:14px">
                     @foreach (var col in _columns)
@@ -110,8 +110,8 @@
                         </div>
                     }
                     <div class="field">
-                        <label>Dodatkowe tagi dla wszystkich</label>
-                        <input class="input" @bind="_extraTags" @bind:after="Recompute" placeholder="np. import, gsm8k" />
+                        <label>@L["import.extraTags"]</label>
+                        <input class="input" @bind="_extraTags" @bind:after="Recompute" placeholder="@L["import.extraTagsPh"]" />
                     </div>
                 </div>
             </section>
@@ -122,8 +122,8 @@
             <section>
                 <div class="row" style="margin-bottom:10px">
                     <span class="section-num">3</span>
-                    <b class="grow">Podgląd</b>
-                    <span class="small"><b>@_mappedCount</b> <span class="faint">przypadków</span>@if (_skipped > 0) { <span style="color:var(--warn)"> · @_skipped pominiętych (pusty prompt)</span> }</span>
+                    <b class="grow">@L["import.preview"]</b>
+                    <span class="small"><b>@_mappedCount</b> <span class="faint">@L["import.cases"]</span>@if (_skipped > 0) { <span style="color:var(--warn)"> · @L["import.skipped", _skipped]</span> }</span>
                 </div>
                 <div class="stack" style="gap:8px">
                     @foreach (var it in _preview)
@@ -140,9 +140,9 @@
         }
     </ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">@L["common.cancel"]</button>
         <button class="btn btn-primary" disabled="@(_rows is null || _mappedCount == 0 || _busy)" @onclick="DoImport">
-            <Icon Name="check" /> Importuj @_mappedCount
+            <Icon Name="check" /> @L["import.doImport", _mappedCount]
         </button>
     </Footer>
 </Modal>
@@ -154,6 +154,9 @@
     [Parameter] public EventCallback<(List<Guid> Ids, string? Tag)> OnImported { get; set; }
 
     private static readonly string[] Fields = ["prompt", "title", "data", "expected", "system", "tags"];
+
+    private string PastePlaceholder =>
+        "[{\"title\":\"…\",\"prompt\":\"…\",\"data\":\"…\",\"expectedAnswer\":\"…\",\"tags\":[\"…\"]}]\n" + L["import.pastePh"];
 
     private string _source = "file", _active = "prompt";
     private string? _text, _fileName, _dataset, _splitKey, _extraTags;
@@ -177,14 +180,14 @@
         _wasOpen = Open;
     }
 
-    private static string FieldLabel(string f) => f switch
+    private string FieldLabel(string f) => f switch
     {
-        "prompt" => "Prompt",
-        "title" => "Tytuł (puste = początek promptu)",
-        "data" => "Dane",
-        "expected" => "Oczekiwana odpowiedź",
-        "system" => "System prompt",
-        _ => "Tagi z kolumny"
+        "prompt" => L["testcases.case.prompt"],
+        "title" => L["import.field.title"],
+        "data" => L["testcases.case.data"],
+        "expected" => L["testcases.case.expected"],
+        "system" => L["testcases.case.systemPrompt"],
+        _ => L["import.field.tags"]
     };
 
     private string? Get(string f) => f switch
@@ -239,7 +242,7 @@
     {
         if (rows.Count == 0)
         {
-            Toasts.Error("Nie znalazłam żadnych wierszy");
+            Toasts.Error(L["import.noRows"]);
             return;
         }
         _rows = rows;
@@ -263,7 +266,7 @@
         }
         catch (Exception ex)
         {
-            Toasts.Error($"Nie udało się wczytać pliku: {ex.Message}");
+            Toasts.Error(L["import.fileError", ex.Message]);
         }
     }
 
@@ -282,7 +285,7 @@
         }
         catch (EvalException ex)
         {
-            Toasts.Error(ex.Message);
+            Toasts.Error(L.Error(ex));
         }
     }
 
@@ -333,7 +336,7 @@
             res = await Import.ImportAsync(new ImportRequest(Rows: _rows, Mapping: _map, Tags: ExtraTags(), UserId: Me.User?.Id)));
         _busy = false;
         if (!ok) return;
-        Toasts.Ok($"Zaimportowano {res!.Created} przypadków – są zaznaczone, możesz od razu odpalić serię");
+        Toasts.Ok(L["import.done", res!.Created]);
         await OpenChanged.InvokeAsync(false);
         await OnImported.InvokeAsync((res.CreatedIds ?? [], ExtraTags().FirstOrDefault()?.ToLowerInvariant()));
     }

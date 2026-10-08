@@ -4,17 +4,17 @@
 @inject EvalEvents Events
 @inject CurrentUser Me
 
-<PageTitle>Iteracje · LLM Eval</PageTitle>
+<PageTitle>@L["iterations.title"] · LLM Eval</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1>Iteracje</h1>
-        <div class="subtitle">Wszystkie uruchomienia, od najnowszych.</div>
+        <h1>@L["iterations.title"]</h1>
+        <div class="subtitle">@L["iterations.subtitle"]</div>
     </div>
     <div class="actions">
         <div class="seg">
-            <button class="@(_unrated ? "" : "on")" @onclick="() => SetUnrated(false)">Wszystkie</button>
-            <button class="@(_unrated ? "on" : "")" @onclick="() => SetUnrated(true)" disabled="@(Me.User is null)"><Icon Name="star" Size="13" /> Do oceny przeze mnie</button>
+            <button class="@(_unrated ? "" : "on")" @onclick="() => SetUnrated(false)">@L["iterations.filter.all"]</button>
+            <button class="@(_unrated ? "on" : "")" @onclick="() => SetUnrated(true)" disabled="@(Me.User is null)"><Icon Name="star" Size="13" /> @L["iterations.filter.unrated"]</button>
         </div>
     </div>
 </div>
@@ -26,7 +26,7 @@
     }
     else if (_items.Count == 0)
     {
-        <div class="empty"><Icon Name="@(_unrated ? "check" : "layers")" Size="40" /><div>@(_unrated ? "Wszystko ocenione. Szacun." : "Brak iteracji.")</div></div>
+        <div class="empty"><Icon Name="@(_unrated ? "check" : "layers")" Size="40" /><div>@(_unrated ? L["iterations.empty.allRated"] : L["iterations.empty.none"])</div></div>
     }
     else
     {

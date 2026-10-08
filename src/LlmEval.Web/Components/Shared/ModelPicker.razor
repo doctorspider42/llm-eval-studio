@@ -1,13 +1,13 @@
 @if (Models.Count == 0)
 {
-    <div class="empty"><Icon Name="cpu" Size="40" /><div>Brak modeli. <a href="providers" style="text-decoration:underline">Dodaj providera</a>.</div></div>
+    <div class="empty"><Icon Name="cpu" Size="40" /><div>@L["testcases.picker.noModels"] <a href="providers" style="text-decoration:underline">@L["testcases.picker.addProvider"]</a>.</div></div>
 }
 else
 {
     <div class="row" style="margin-bottom:10px">
-        <span class="small muted grow">Wybrano: <b>@Selected.Count</b></span>
-        <button class="btn btn-sm btn-ghost" @onclick="SelectAllAvailable">Zaznacz wszystkie dostępne</button>
-        <button class="btn btn-sm btn-ghost" @onclick="Clear">Wyczyść</button>
+        <span class="small muted grow">@L["testcases.picker.selected"] <b>@Selected.Count</b></span>
+        <button class="btn btn-sm btn-ghost" @onclick="SelectAllAvailable">@L["testcases.picker.selectAll"]</button>
+        <button class="btn btn-sm btn-ghost" @onclick="Clear">@L["common.clear"]</button>
     </div>
     <div class="stack" style="gap:14px">
         @foreach (var g in Models.GroupBy(m => (m.ProviderId, m.ProviderName, m.ProviderType, m.ProviderEnabled)))
@@ -16,7 +16,7 @@ else
                 <div class="row small" style="margin-bottom:8px">
                     <ProviderIcon Type="g.Key.ProviderType" Size="20" />
                     <b>@g.Key.ProviderName</b>
-                    @if (!g.Key.ProviderEnabled) { <span class="faint">(provider wyłączony)</span> }
+                    @if (!g.Key.ProviderEnabled) { <span class="faint">(@L["testcases.picker.providerOff"])</span> }
                 </div>
                 <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px">
                     @foreach (var m in g)
@@ -28,7 +28,7 @@ else
                                 <div class="ellipsis" style="font-weight:500">@m.DisplayName</div>
                                 <div class="small faint ellipsis mono">@m.ModelId</div>
                             </div>
-                            @if (ShowJudgeBadge && m.IsJudge) { <span title="Sędzia AI"><Icon Name="scale" Size="13" Class="star-ico" /></span> }
+                            @if (ShowJudgeBadge && m.IsJudge) { <span title="@L["providers.aiJudge"]"><Icon Name="scale" Size="13" Class="star-ico" /></span> }
                         </div>
                     }
                 </div>

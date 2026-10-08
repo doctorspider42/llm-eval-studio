@@ -1,0 +1,22 @@
+{
+  "users.title": "Users",
+  "users.subtitle": "No passwords – it’s an internal app. Mark bots (LLM judges via the API) as “bot”.",
+  "users.add": "Add user",
+  "users.badge.aiJudge": "AI judge",
+  "users.badge.bot": "bot",
+  "users.badge.you": "that’s you",
+  "users.noEmail": "no email",
+  "users.since": "joined {0}",
+  "users.apiId": "ID for the API",
+  "users.switchTo": "Switch to this user",
+  "users.modal.new": "New user",
+  "users.modal.edit": "Edit user",
+  "users.field.name": "Name",
+  "users.field.namePlaceholder": "Full name, or something like Claude Judge",
+  "users.field.email": "Email (optional)",
+  "users.field.isBot": "It’s a bot / LLM judge",
+  "users.delete.title": "Delete this user?",
+  "users.delete.before": "Deleting",
+  "users.delete.after": "also wipes out all of their ratings.",
+  "users.deleted": "{0} deleted"
+}

@@ -6,11 +6,11 @@
 @inject CurrentUser Me
 @inject NavigationManager Nav
 
-<PageTitle>@(_b?.Summary.Name ?? "Seria") · LLM Eval</PageTitle>
+<PageTitle>@(_b?.Summary.Name ?? L["batch.detail.fallbackTitle"]) · LLM Eval</PageTitle>
 
 @if (_notFound)
 {
-    <div class="card empty"><Icon Name="alert" Size="40" /><div>Ta seria nie istnieje.</div><a class="btn" href="batches" style="margin-top:12px">Wróć</a></div>
+    <div class="card empty"><Icon Name="alert" Size="40" /><div>@L["batch.detail.notFound"]</div><a class="btn" href="batches" style="margin-top:12px">@L["common.back"]</a></div>
 }
 else if (_b is null)
 {
@@ -21,33 +21,54 @@ else
     var s = _b.Summary;
     var reps = Enumerable.Range(1, s.Repetitions).ToList();
 
-    <div class="crumbs"><a href="batches">Serie</a><Icon Name="chevron-right" Size="12" /><span>@s.Name</span></div>
+    <div class="crumbs"><a href="batches">@L["batch.list.title"]</a><Icon Name="chevron-right" Size="12" /><span>@s.Name</span></div>
     <div class="page-header">
         <div style="min-width:0">
             <h1>@s.Name</h1>
             <div class="subtitle">
-                @s.TestCaseCount przypadków × @s.ModelCount modeli × @s.Repetitions powt. = @s.ResultTotal odpowiedzi
-                · @(s.CreatedBy ?? "ktoś") · @Fmt.Date(s.CreatedAt)
+                @L["batch.calcLine", s.TestCaseCount, s.ModelCount, s.Repetitions, s.ResultTotal]
+                · @(s.CreatedBy ?? L["common.someone"]) · @L.Date(s.CreatedAt)
             </div>
         </div>
         <div class="actions">
-            <button class="btn btn-ghost btn-danger btn-icon" title="Usuń serię" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
-            <button class="btn" disabled="@(Me.User is null)" @onclick="GoNextUnrated" title="Przejdź do pierwszej iteracji, której jeszcze nie oceniłeś">
-                <Icon Name="star" /> Oceniaj po kolei
+            <button class="btn btn-ghost btn-danger btn-icon" title="@L["batch.detail.delete"]" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
+            <div class="dropdown">
+                <button class="btn" @onclick="() => _reportOpen = !_reportOpen"><Icon Name="file" /> @L["batch.report.button"] <Icon Name="chevron-down" Size="13" /></button>
+                @if (_reportOpen)
+                {
+                    <div class="click-catcher" @onclick="() => _reportOpen = false"></div>
+                    <div class="dropdown-menu" style="min-width:300px;padding:10px">
+                        <div class="small faint" style="margin-bottom:8px">@L["batch.report.intro"]</div>
+                        <div class="stack" style="gap:8px">
+                            <label class="switch small"><input type="checkbox" @bind="_repReveal" /><span class="track"></span> @L["batch.report.reveal"]</label>
+                            <label class="switch small"><input type="checkbox" @bind="_repComments" /><span class="track"></span> @L["batch.report.comments"]</label>
+                            <label class="switch small"><input type="checkbox" @bind="_repAnswers" /><span class="track"></span> @L["batch.report.answers"]</label>
+                        </div>
+                        <a class="btn btn-primary btn-sm" style="width:100%;margin-top:12px" href="@ReportUrl(print: true)" target="_blank" @onclick="() => _reportOpen = false">
+                            <Icon Name="file" Size="14" /> @L["batch.report.pdf"]
+                        </a>
+                        <a class="btn btn-ghost btn-sm" style="width:100%;margin-top:4px" href="@ReportUrl(print: false)" target="_blank" @onclick="() => _reportOpen = false">
+                            <Icon Name="external" Size="14" /> @L["batch.report.preview"]
+                        </a>
+                    </div>
+                }
+            </div>
+            <button class="btn" disabled="@(Me.User is null)" @onclick="GoNextUnrated" title="@L["batch.detail.nextUnratedTitle"]">
+                <Icon Name="star" /> @L["batch.detail.rateInOrder"]
             </button>
             <div class="dropdown">
-                <button class="btn" @onclick="OpenJudgeMenu"><Icon Name="scale" /> Oceń całość przez AI <Icon Name="chevron-down" Size="13" /></button>
+                <button class="btn" @onclick="OpenJudgeMenu"><Icon Name="scale" /> @L["batch.detail.judgeAll"] <Icon Name="chevron-down" Size="13" /></button>
                 @if (_judgeOpen)
                 {
                     <div class="click-catcher" @onclick="() => _judgeOpen = false"></div>
                     <div class="dropdown-menu" style="min-width:320px">
                         @if (_judges.Count == 0)
                         {
-                            <div style="padding:10px" class="small muted">Brak sędziów. Oznacz model jako <b>Sędzia AI</b> na stronie <a href="providers" style="text-decoration:underline">providerów</a>.</div>
+                            <div style="padding:10px" class="small muted">@((MarkupString)L["batch.detail.noJudges"])</div>
                         }
                         else
                         {
-                            <div class="small faint" style="padding:6px 10px">Sędziowie oceniają każdą iterację na ślepo.</div>
+                            <div class="small faint" style="padding:6px 10px">@L["batch.detail.judgesBlind"]</div>
                             @foreach (var j in _judges)
                             {
                                 var on = _judgeSel.Contains(j.Id);
@@ -59,23 +80,23 @@ else
                             }
                             <div class="dropdown-sep"></div>
                             <label class="switch small" style="padding:6px 10px">
-                                <input type="checkbox" @bind="_onlyUnjudged" /><span class="track"></span> Pomiń już ocenione przez tego sędziego
+                                <input type="checkbox" @bind="_onlyUnjudged" /><span class="track"></span> @L["batch.detail.skipJudged"]
                             </label>
                             <div style="padding:4px">
                                 <button class="btn btn-primary btn-sm" style="width:100%" disabled="@(_judgeSel.Count == 0)" @onclick="RunJudges">
-                                    <Icon Name="zap" Size="14" /> Oceń @s.IterationCount iteracji
+                                    <Icon Name="zap" Size="14" /> @L["batch.detail.judgeN", s.IterationCount]
                                 </button>
                             </div>
                             @if (s.IsRunning)
                             {
-                                <div class="small faint" style="padding:6px 10px">Iteracje, które jeszcze się generują, zostaną ocenione automatycznie po zakończeniu.</div>
+                                <div class="small faint" style="padding:6px 10px">@L["batch.detail.judgeDeferred"]</div>
                             }
                         }
                     </div>
                 }
             </div>
             <button class="btn @(_reveal ? "" : "btn-primary")" @onclick="ToggleReveal">
-                <Icon Name="@(_reveal ? "eye-off" : "eye")" /> @(_reveal ? "Ukryj modele" : "Odkryj modele")
+                <Icon Name="@(_reveal ? "eye-off" : "eye")" /> @(_reveal ? L["common.hide"] : L["common.reveal"])
             </button>
         </div>
     </div>
@@ -84,40 +105,40 @@ else
     <div class="grid grid-2" style="margin-bottom:16px">
         <div class="card" style="padding:16px 18px">
             <div class="row small" style="margin-bottom:8px">
-                <Icon Name="sparkles" Size="14" /> <b class="grow">Odpowiedzi modeli</b>
+                <Icon Name="sparkles" Size="14" /> <b class="grow">@L["batch.detail.answers"]</b>
                 <span class="mono">@s.ResultDone / @s.ResultTotal</span>
                 @if (s.ResultFailed > 0) { <span class="badge badge-failed">@s.ResultFailed ✕</span> }
             </div>
             <div class="progress" style="height:6px"><i style="width:@(s.ResultDone * 100 / Math.Max(1, s.ResultTotal))%"></i></div>
-            <div class="small faint" style="margin-top:6px">@(s.IsRunning ? "Generuje się… wyniki pojawiają się na żywo, możesz już oceniać gotowe." : "Wszystko wygenerowane.")</div>
+            <div class="small faint" style="margin-top:6px">@(s.IsRunning ? L["batch.detail.generating"] : L["batch.detail.allGenerated"])</div>
         </div>
         <div class="card" style="padding:16px 18px">
             <div class="row small" style="margin-bottom:8px">
-                <Icon Name="scale" Size="14" /> <b class="grow">Sędzia AI</b>
+                <Icon Name="scale" Size="14" /> <b class="grow">@L["batch.detail.judge"]</b>
                 <span class="mono">@s.JudgeDone / @s.JudgeTotal</span>
-                <label class="switch small" title="Oceniaj automatycznie każdą iterację po zakończeniu">
-                    <input type="checkbox" checked="@s.AutoJudge" @onchange="e => SetAuto((bool)e.Value!)" /><span class="track"></span> auto
+                <label class="switch small" title="@L["batch.detail.autoTitle"]">
+                    <input type="checkbox" checked="@s.AutoJudge" @onchange="e => SetAuto((bool)e.Value!)" /><span class="track"></span> @L["batch.badge.auto"]
                 </label>
             </div>
             <div class="progress" style="height:6px"><i style="width:@(s.JudgeDone * 100 / Math.Max(1, s.JudgeTotal))%;background:linear-gradient(90deg,#f59e0b,#fde68a)"></i></div>
             <div class="small faint" style="margin-top:6px">
-                @(s.JudgeTotal == 0 ? (s.AutoJudge ? "Sędzia wkroczy, gdy iteracje się skończą." : "Jeszcze nikt nie oceniał. Kliknij „Oceń całość przez AI”.") : s.IsJudging ? "Sędzia czyta i ocenia…" : "Sędzia skończył.")
+                @(s.JudgeTotal == 0 ? (s.AutoJudge ? L["batch.detail.judgeWaiting"] : L["batch.detail.judgeNone"]) : s.IsJudging ? L["batch.detail.judging"] : L["batch.detail.judgeDone"])
             </div>
         </div>
     </div>
 
     @* ── per-model standings ── *@
     <div class="card" style="margin-bottom:16px">
-        <div class="card-title"><Icon Name="trophy" /> Wyniki modeli w serii
+        <div class="card-title"><Icon Name="trophy" /> @L["batch.detail.standings"]
             <span class="grow"></span>
-            @if (!_reveal) { <span class="small faint" style="text-transform:none;letter-spacing:0;font-weight:400">„Kandydat A…” to stałe aliasy w tej serii – w iteracjach i tak są Model 1, 2…</span> }
+            @if (!_reveal) { <span class="small faint" style="text-transform:none;letter-spacing:0;font-weight:400">@L["batch.detail.aliasHint"]</span> }
         </div>
         <table class="table">
             <thead><tr>
-                <th style="width:40px"></th><th>Model</th><th>Średnia</th><th class="num">Ludzie</th><th class="num">AI</th>
-                <th class="num" title="Ile razy był najlepszy w iteracji">Wygrane</th>
-                <th class="num" title="Odchylenie standardowe ocen – im mniej, tym stabilniej">Rozrzut σ</th>
-                <th class="num">Błędy</th><th class="num">Śr. czas</th><th class="num">Śr. tokeny</th>
+                <th style="width:40px"></th><th>@L["batch.col.model"]</th><th>@L["batch.col.avg"]</th><th class="num">@L["batch.col.humans"]</th><th class="num">@L["batch.col.ai"]</th>
+                <th class="num" title="@L["batch.col.winsTitle"]">@L["batch.col.wins"]</th>
+                <th class="num" title="@L["batch.col.spreadTitle"]">@L["batch.col.spread"]</th>
+                <th class="num">@L["batch.col.errors"]</th><th class="num">@L["batch.col.avgTime"]</th><th class="num">@L["batch.col.avgTokens"]</th>
             </tr></thead>
             <tbody>
             @{ var rank = 0; }
@@ -130,26 +151,26 @@ else
                         @if (m.Model is { } mr)
                         {
                             <div class="row reveal-name"><ProviderIcon Type="mr.ProviderType" Size="26" />
-                                <div><div style="font-weight:600">@mr.DisplayName</div><div class="small faint">@m.Alias · @mr.ProviderName</div></div>
+                                <div><div style="font-weight:600">@mr.DisplayName</div><div class="small faint">@L["candidate", m.Alias] · @mr.ProviderName</div></div>
                             </div>
                         }
                         else
                         {
                             <div class="row"><span class="slot" style="--h:@CandidateChip.Hue(m.Alias);width:26px;height:26px;font-size:12px;border-radius:8px">@CandidateChip.Letter(m.Alias)</span>
-                                <div style="font-weight:600">@m.Alias</div></div>
+                                <div style="font-weight:600">@L["candidate", m.Alias]</div></div>
                         }
                     </td>
                     <td style="min-width:150px">
-                        <div class="row"><span class="score">@Fmt.Stars(m.AvgStars)</span><StarRating Value="m.AvgStars ?? 0" ReadOnly Size="13" /></div>
-                        <div class="small faint">@m.RatingCount ocen</div>
+                        <div class="row"><span class="score">@L.Stars(m.AvgStars)</span><StarRating Value="m.AvgStars ?? 0" ReadOnly Size="13" /></div>
+                        <div class="small faint">@L.Plural("plural.ratings", m.RatingCount)</div>
                     </td>
-                    <td class="num">@Fmt.Stars(m.AvgStarsHuman)</td>
-                    <td class="num">@Fmt.Stars(m.AvgStarsAi)</td>
+                    <td class="num">@L.Stars(m.AvgStarsHuman)</td>
+                    <td class="num">@L.Stars(m.AvgStarsAi)</td>
                     <td class="num">@m.Wins</td>
-                    <td class="num">@(m.StdDev?.ToString("0.00") ?? "—")</td>
+                    <td class="num">@(m.StdDev is { } sd ? L.Num(sd, "0.00") : "—")</td>
                     <td class="num" style="@(m.Failures > 0 ? "color:var(--err)" : "")">@m.Failures/@m.Results</td>
-                    <td class="num faint">@Fmt.Ms(m.AvgLatencyMs)</td>
-                    <td class="num faint">@(m.AvgOutputTokens?.ToString("N0") ?? "—")</td>
+                    <td class="num faint">@L.Ms(m.AvgLatencyMs)</td>
+                    <td class="num faint">@(m.AvgOutputTokens is { } tok ? L.Num(tok) : "—")</td>
                 </tr>
             }
             </tbody>
@@ -158,22 +179,22 @@ else
 
     @* ── matrix ── *@
     <div class="card">
-        <div class="card-title"><Icon Name="grid" /> Przypadki × powtórzenia
+        <div class="card-title"><Icon Name="grid" /> @L["batch.matrix.title"]
             <span class="grow"></span>
             <span class="row small faint" style="text-transform:none;letter-spacing:0;font-weight:400;gap:12px">
-                <span>litera = kandydat, liczba = średnia jego ocen (ludzie + AI), kolor = jak dobrze</span>
-                <span class="cm" style="opacity:.6"><b>·</b>czeka</span>
-                <span class="cm fail"><b>A</b>✕</span><span style="margin-left:-6px">błąd</span>
-                <span><Icon Name="scale" Size="11" /> sędzia</span>
-                <span style="color:var(--ok)">✓ oceniłeś</span>
+                <span>@L["batch.matrix.legend"]</span>
+                <span class="cm" style="opacity:.6"><b>·</b>@L["batch.matrix.pending"]</span>
+                <span class="cm fail"><b>A</b>✕</span><span style="margin-left:-6px">@L["batch.matrix.failed"]</span>
+                <span><Icon Name="scale" Size="11" /> @L["batch.matrix.judge"]</span>
+                <span style="color:var(--ok)">✓ @L["batch.matrix.ratedByMe"]</span>
             </span>
         </div>
         <div style="overflow-x:auto">
             <table class="matrix">
                 <thead><tr>
-                    <th class="tc">Przypadek</th>
-                    @foreach (var r in reps) { <th>Powt. @r</th> }
-                    <th>Średnio w wierszu</th>
+                    <th class="tc">@L["batch.matrix.case"]</th>
+                    @foreach (var r in reps) { <th>@L["batch.matrix.rep", r]</th> }
+                    <th>@L["batch.matrix.rowAvg"]</th>
                 </tr></thead>
                 <tbody>
                 @foreach (var row in _b.Rows)
@@ -186,7 +207,7 @@ else
                             <td>
                                 @if (c is not null)
                                 {
-                                    <a class="cell @(c.RatedByMe ? "mine" : "")" href="iterations/@c.IterationId" title="Iteracja #@c.Number – kliknij, żeby zobaczyć odpowiedzi">
+                                    <a class="cell @(c.RatedByMe ? "mine" : "")" href="iterations/@c.IterationId" title="@L["batch.matrix.cellTitle", c.Number]">
                                         <span class="cms">
                                             @foreach (var m in c.Models)
                                             {
@@ -195,7 +216,7 @@ else
                                         </span>
                                         @if (c.JudgeTotal > 0)
                                         {
-                                            <span class="judge-mark" title="Sędzia AI @c.JudgeDone/@c.JudgeTotal"><Icon Name="scale" Size="11" Class="@(c.JudgeDone < c.JudgeTotal ? "spin-slow" : null)" /></span>
+                                            <span class="judge-mark" title="@L["batch.matrix.judgeTitle", c.JudgeDone, c.JudgeTotal]"><Icon Name="scale" Size="11" Class="@(c.JudgeDone < c.JudgeTotal ? "spin-slow" : null)" /></span>
                                         }
                                     </a>
                                 }
@@ -216,11 +237,11 @@ else
         </div>
     </div>
 
-    <Modal @bind-Open="_confirmDelete" Title="Usunąć serię?" Icon="trash">
-        <ChildContent><div class="muted">Polecą wszystkie iteracje tej serii (@s.IterationCount), odpowiedzi i oceny.</div></ChildContent>
+    <Modal @bind-Open="_confirmDelete" Title="@L["batch.detail.deleteConfirm"]" Icon="trash">
+        <ChildContent><div class="muted">@L["batch.detail.deleteBody", s.IterationCount]</div></ChildContent>
         <Footer>
-            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">Anuluj</button>
-            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> Usuń serię</button>
+            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">@L["common.cancel"]</button>
+            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> @L["batch.detail.delete"]</button>
         </Footer>
     </Modal>
 }
@@ -252,6 +273,12 @@ else
     private string? NameOf(string alias) => _b?.Models.FirstOrDefault(m => m.Alias == alias)?.Model?.DisplayName;
 
 
+    private bool _reportOpen, _repReveal = true, _repComments = true, _repAnswers;
+
+    private string ReportUrl(bool print) =>
+        $"reports/batches/{Id}?lang={L.Lang}&reveal={_repReveal.ToString().ToLowerInvariant()}" +
+        $"&comments={_repComments.ToString().ToLowerInvariant()}&answers={_repAnswers.ToString().ToLowerInvariant()}&print={print.ToString().ToLowerInvariant()}";
+
     private async Task ToggleReveal()
     {
         _reveal = !_reveal;
@@ -279,8 +306,8 @@ else
         if (!await Toasts.Try(async () => res = await Svc.JudgeBatchAsync(Id, new JudgeBatchRequest(_judgeSel.ToList(), _onlyUnjudged, Me.User?.Id))))
             return;
         var msg = res!.QueuedRuns == 0 && res.Deferred == 0
-            ? "Nic do oceny – wszystko już ocenione (odznacz „Pomiń już ocenione”, żeby ocenić ponownie)"
-            : $"Sędzia ocenia {res.QueuedRuns} iteracji" + (res.Deferred > 0 ? $", kolejne {res.Deferred} oceni po zakończeniu" : "");
+            ? L["batch.detail.nothingToJudge"]
+            : L["batch.detail.judgeQueued", res.QueuedRuns] + (res.Deferred > 0 ? L["batch.detail.judgeQueuedDeferred", res.Deferred] : "");
         Toasts.Ok(msg);
         await Load();
     }
@@ -289,11 +316,11 @@ else
     {
         if (enabled && (await Svc.GetJudgeModelsAsync()).Count == 0 && (_b?.JudgeModelIds.Count ?? 0) == 0)
         {
-            Toasts.Error("Brak sędziów – oznacz model jako „Sędzia AI” na stronie providerów");
+            Toasts.Error(L["batch.noJudges"]);
             await Load();
             return;
         }
-        await Toasts.Try(() => Svc.SetBatchAutoJudgeAsync(Id, enabled), enabled ? "Auto-sędzia włączony" : "Auto-sędzia wyłączony");
+        await Toasts.Try(() => Svc.SetBatchAutoJudgeAsync(Id, enabled), enabled ? L["batch.detail.autoOn"] : L["batch.detail.autoOff"]);
         await Load();
     }
 
@@ -301,12 +328,12 @@ else
     {
         var next = await Svc.NextUnratedInBatchAsync(Id, Me.User!.Id);
         if (next is { } it) Nav.NavigateTo($"iterations/{it}");
-        else Toasts.Ok("Wszystko w tej serii masz już ocenione 🎉");
+        else Toasts.Ok(L["batch.detail.allRated"]);
     }
 
     private async Task Delete()
     {
-        if (await Toasts.Try(() => Svc.DeleteBatchAsync(Id), "Seria usunięta")) Nav.NavigateTo("batches");
+        if (await Toasts.Try(() => Svc.DeleteBatchAsync(Id), L["batch.detail.deleted"])) Nav.NavigateTo("batches");
     }
 
     private bool _reloadPending;

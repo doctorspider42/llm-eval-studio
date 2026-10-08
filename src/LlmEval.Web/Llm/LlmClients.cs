@@ -53,7 +53,7 @@ public class OpenAiClient(IHttpClientFactory httpFactory) : ILlmClient
 
     private static string ApiKey(Provider p) =>
         p.ApiKey ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-        ?? throw new LlmException("Brak klucza API (ustaw w providerze albo OPENAI_API_KEY)");
+        ?? throw new LlmException("Missing API key (set it on the provider or via OPENAI_API_KEY)");
 
     public async Task<LlmResponse> CompleteAsync(LlmRequest r, CancellationToken ct)
     {
@@ -97,7 +97,7 @@ public class AnthropicClient(IHttpClientFactory httpFactory) : ILlmClient
     private static void Auth(HttpRequestMessage req, Provider p)
     {
         var key = p.ApiKey ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
-                  ?? throw new LlmException("Brak klucza API (ustaw w providerze albo ANTHROPIC_API_KEY)");
+                  ?? throw new LlmException("Missing API key (set it on the provider or via ANTHROPIC_API_KEY)");
         req.Headers.Add("x-api-key", key);
         req.Headers.Add("anthropic-version", "2023-06-01");
     }
@@ -208,11 +208,11 @@ public abstract class CliClientBase : ILlmClient
         Process proc;
         try
         {
-            proc = Process.Start(psi) ?? throw new LlmException($"Nie udało się uruchomić {psi.FileName}");
+            proc = Process.Start(psi) ?? throw new LlmException($"Failed to start {psi.FileName}");
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            throw new LlmException($"Nie znaleziono '{psi.FileName}' ({ex.Message}). Ustaw ścieżkę CLI w providerze.");
+            throw new LlmException($"'{psi.FileName}' not found ({ex.Message}). Set the CLI path on the provider.");
         }
 
         using (proc)
@@ -229,7 +229,7 @@ public abstract class CliClientBase : ILlmClient
             {
                 try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
                 if (ct.IsCancellationRequested) throw;
-                throw new LlmException($"Timeout po {p.TimeoutSeconds}s");
+                throw new LlmException($"Timed out after {p.TimeoutSeconds}s");
             }
             var stdout = await stdoutTask;
             var stderr = await stderrTask;
@@ -290,7 +290,7 @@ public class ClaudeCliClient : CliClientBase
             ];
 
             var (stdout, _) = await RunAsync(r.Provider, args, r.UserMessage, dir, ct);
-            var json = JsonNode.Parse(stdout) ?? throw new LlmException("Pusty output z claude CLI");
+            var json = JsonNode.Parse(stdout) ?? throw new LlmException("Empty output from claude CLI");
             if (json["is_error"]?.GetValue<bool>() == true)
                 throw new LlmException($"claude CLI: {json["result"]}");
             var usage = json["usage"];
@@ -302,7 +302,7 @@ public class ClaudeCliClient : CliClientBase
         }
         catch (JsonException)
         {
-            throw new LlmException("claude CLI zwrócił niepoprawny JSON");
+            throw new LlmException("claude CLI returned invalid JSON");
         }
         finally
         {

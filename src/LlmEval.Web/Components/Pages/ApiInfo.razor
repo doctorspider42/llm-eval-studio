@@ -8,18 +8,18 @@
 
 <div class="page-header">
     <div>
-        <h1>API &amp; skill dla agentów</h1>
-        <div class="subtitle">Wszystko, co klikniesz w UI, zrobisz też przez REST – np. Claude jako sędzia oceniający odpowiedzi.</div>
+        <h1>@L["api.title"]</h1>
+        <div class="subtitle">@L["api.subtitle"]</div>
     </div>
     <div class="actions">
         <a class="btn" href="openapi/v1.json" target="_blank"><Icon Name="file" /> OpenAPI JSON</a>
-        <a class="btn btn-primary" href="scalar" target="_blank"><Icon Name="external" /> Interaktywna dokumentacja</a>
+        <a class="btn btn-primary" href="scalar" target="_blank"><Icon Name="external" /> @L["api.docs"]</a>
     </div>
 </div>
 
 <div class="grid grid-2" style="align-items:start">
     <div class="card">
-        <div class="card-title"><Icon Name="zap" /> Szybki start</div>
+        <div class="card-title"><Icon Name="zap" /> @L["api.quickStart"]</div>
         <div class="stack">
             @foreach (var (title, cmd) in Examples)
             {
@@ -35,24 +35,23 @@
 
     <div class="stack" style="gap:16px">
         <div class="card">
-            <div class="card-title"><Icon Name="bot" /> Skill dla Claude</div>
+            <div class="card-title"><Icon Name="bot" /> @L["api.skill.title"]</div>
             <div class="muted">
-                W repo jest gotowy skill <code class="kbd">.claude/skills/llm-eval/SKILL.md</code>. Uruchom Claude Code w katalogu projektu
-                (albo skopiuj skill do <code class="kbd">~/.claude/skills/</code>) i powiedz np.:
+                @((MarkupString)L["api.skill.intro"])
             </div>
-            <pre class="pre-block" style="margin-top:12px">oceń wszystkie nieocenione iteracje w LLM Eval jako „Claude Judge”</pre>
-            <div class="small faint" style="margin-top:10px">Skill sam założy użytkownika-bota, pobierze iteracje w trybie ślepym i wystawi gwiazdki z uzasadnieniem.</div>
+            <pre class="pre-block" style="margin-top:12px">@L["api.skill.prompt"]</pre>
+            <div class="small faint" style="margin-top:10px">@L["api.skill.note"]</div>
         </div>
         <div class="card">
-            <div class="card-title"><Icon Name="layers" /> Zasoby</div>
+            <div class="card-title"><Icon Name="layers" /> @L["api.resources.title"]</div>
             <table class="table">
                 <tbody>
-                    <tr><td class="mono small">/api/users</td><td class="muted small">użytkownicy (bez haseł)</td></tr>
-                    <tr><td class="mono small">/api/providers · /api/models</td><td class="muted small">konfiguracja LLM</td></tr>
-                    <tr><td class="mono small">/api/test-cases</td><td class="muted small">przypadki + <code>POST …/{id}/iterations</code></td></tr>
-                    <tr><td class="mono small">/api/iterations/{id}</td><td class="muted small">wyniki, <code>?reveal=true</code>, <code>/wait</code></td></tr>
-                    <tr><td class="mono small">/api/results/{id}/rating</td><td class="muted small">PUT gwiazdki + komentarz</td></tr>
-                    <tr><td class="mono small">/api/stats/leaderboard</td><td class="muted small">ranking modeli</td></tr>
+                    <tr><td class="mono small">/api/users</td><td class="muted small">@L["api.resources.users"]</td></tr>
+                    <tr><td class="mono small">/api/providers · /api/models</td><td class="muted small">@L["api.resources.providers"]</td></tr>
+                    <tr><td class="mono small">/api/test-cases</td><td class="muted small">@L["api.resources.testCases"] <code>POST …/{id}/iterations</code></td></tr>
+                    <tr><td class="mono small">/api/iterations/{id}</td><td class="muted small">@L["api.resources.iterations"], <code>?reveal=true</code>, <code>/wait</code></td></tr>
+                    <tr><td class="mono small">/api/results/{id}/rating</td><td class="muted small">@L["api.resources.rating"]</td></tr>
+                    <tr><td class="mono small">/api/stats/leaderboard</td><td class="muted small">@L["api.resources.leaderboard"]</td></tr>
                 </tbody>
             </table>
         </div>
@@ -61,21 +60,22 @@
 
 @code {
     private string Base => Nav.BaseUri.TrimEnd('/');
+    private string ExampleComment => L["api.ex.comment"];
     private string UserId => Me.User?.Id.ToString() ?? "<USER_ID>";
 
     private IEnumerable<(string, string)> Examples =>
     [
-        ("Lista przypadków testowych", $"curl {Base}/api/test-cases"),
-        ("Lista modeli (włączonych)", $"curl \"{Base}/api/models?onlyEnabled=true\""),
-        ("Odpal iterację", $"curl -X POST {Base}/api/test-cases/<TEST_CASE_ID>/iterations \\\n  -H \"Content-Type: application/json\" \\\n  -d '{{\"modelIds\":[\"<MODEL_ID>\",\"<MODEL_ID>\"],\"userId\":\"{UserId}\"}}'"),
-        ("Poczekaj na wyniki (ślepo)", $"curl \"{Base}/api/iterations/<ITERATION_ID>/wait?timeoutSeconds=180\""),
-        ("Oceń odpowiedź", $"curl -X PUT {Base}/api/results/<RESULT_ID>/rating \\\n  -H \"Content-Type: application/json\" \\\n  -d '{{\"userId\":\"{UserId}\",\"stars\":4,\"comment\":\"Konkretnie, ale pominął ryzyka.\"}}'"),
-        ("Ranking", $"curl {Base}/api/stats/leaderboard"),
+        (L["api.ex.listCases"], $"curl {Base}/api/test-cases"),
+        (L["api.ex.listModels"], $"curl \"{Base}/api/models?onlyEnabled=true\""),
+        (L["api.ex.run"], $"curl -X POST {Base}/api/test-cases/<TEST_CASE_ID>/iterations \\\n  -H \"Content-Type: application/json\" \\\n  -d '{{\"modelIds\":[\"<MODEL_ID>\",\"<MODEL_ID>\"],\"userId\":\"{UserId}\"}}'"),
+        (L["api.ex.wait"], $"curl \"{Base}/api/iterations/<ITERATION_ID>/wait?timeoutSeconds=180\""),
+        (L["api.ex.rate"], $"curl -X PUT {Base}/api/results/<RESULT_ID>/rating \\\n  -H \"Content-Type: application/json\" \\\n  -d '{{\"userId\":\"{UserId}\",\"stars\":4,\"comment\":\"{ExampleComment}\"}}'"),
+        (L["api.ex.leaderboard"], $"curl {Base}/api/stats/leaderboard"),
     ];
 
     private async Task Copy(string text)
     {
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
-        Toasts.Ok("Skopiowane");
+        Toasts.Ok(L["common.copied"]);
     }
 }

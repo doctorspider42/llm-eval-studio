@@ -100,7 +100,7 @@ public partial class JudgeRunner(
         try
         {
             var answers = run.Iteration.Results.Where(r => r.Status == ResultStatus.Completed).ToList();
-            if (answers.Count == 0) throw new LlmException("Brak udanych odpowiedzi do oceny");
+            if (answers.Count == 0) throw new LlmException("No successful answers to rate");
 
             var prompt = BuildPrompt(run.Iteration, answers);
             var response = await clients.For(run.Model.Provider.Type)
@@ -127,7 +127,7 @@ public partial class JudgeRunner(
 
             var missing = answers.Count - verdicts.Count;
             run.Status = ResultStatus.Completed;
-            run.Error = missing > 0 ? $"Sędzia pominął {missing} odpowiedzi" : null;
+            run.Error = missing > 0 ? $"Judge skipped {missing} answer(s)" : null;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -169,13 +169,13 @@ public partial class JudgeRunner(
     {
         var start = output.IndexOf('{');
         var end = output.LastIndexOf('}');
-        if (start < 0 || end <= start) throw new LlmException("Sędzia nie zwrócił JSON-a");
+        if (start < 0 || end <= start) throw new LlmException("Judge did not return JSON");
 
         JsonNode? json;
         try { json = JsonNode.Parse(output[start..(end + 1)]); }
-        catch (Exception ex) { throw new LlmException($"Sędzia zwrócił niepoprawny JSON: {ex.Message}"); }
+        catch (Exception ex) { throw new LlmException($"Judge returned invalid JSON: {ex.Message}"); }
 
-        var items = json?["ratings"] as JsonArray ?? throw new LlmException("W odpowiedzi sędziego brak tablicy 'ratings'");
+        var items = json?["ratings"] as JsonArray ?? throw new LlmException("Judge response has no 'ratings' array");
         var bySlot = answers.ToDictionary(a => a.Slot);
         var verdicts = new Dictionary<IterationResult, (int, string?)>();
 
@@ -191,7 +191,7 @@ public partial class JudgeRunner(
             verdicts[result] = (stars, string.IsNullOrWhiteSpace(comment) ? null : comment.Trim());
         }
 
-        if (verdicts.Count == 0) throw new LlmException("Nie udało się odczytać żadnej oceny z odpowiedzi sędziego");
+        if (verdicts.Count == 0) throw new LlmException("Could not read any rating from the judge response");
         return verdicts;
     }
 

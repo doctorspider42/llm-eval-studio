@@ -1,11 +1,11 @@
 <a class="row card-hover" href="iterations/@Item.Id" style="padding:10px 12px;border-radius:12px;border:1px solid transparent">
     <span class="rank">#@Item.Number</span>
     <div class="grow" style="min-width:0">
-        <div class="ellipsis" style="font-weight:500">@(ShowTitle ? Item.TestCaseTitle : Item.Note ?? $"Iteracja #{Item.Number}")</div>
+        <div class="ellipsis" style="font-weight:500">@(ShowTitle ? Item.TestCaseTitle : Item.Note ?? L["iterations.row.title", Item.Number])</div>
         <div class="small faint ellipsis">
-            @Item.ResultCount modeli · @Fmt.Ago(Item.CreatedAt)@(Item.CreatedBy is null ? "" : $" · {Item.CreatedBy}")
+            @L.Plural("plural.models", Item.ResultCount) · @L.Ago(Item.CreatedAt)@(Item.CreatedBy is null ? "" : $" · {Item.CreatedBy}")
             @if (ShowTitle && Item.Note is not null) { <span> · @Item.Note</span> }
-            @if (Item.BatchName is not null) { <span class="series-pill"><Icon Name="list-checks" Size="10" /> @Item.BatchName · powt. @Item.Repetition</span> }
+            @if (Item.BatchName is not null) { <span class="series-pill"><Icon Name="list-checks" Size="10" /> @Item.BatchName · @L["iterations.row.repetition", Item.Repetition]</span> }
         </div>
         @if (Item.IsRunning)
         {
@@ -18,11 +18,11 @@
     }
     else if (Item.FailedCount > 0)
     {
-        <span class="badge badge-failed" title="Nieudane odpowiedzi">@Item.FailedCount ✕</span>
+        <span class="badge badge-failed" title="@L["iterations.row.failed"]">@Item.FailedCount ✕</span>
     }
     <div style="text-align:right;min-width:74px">
-        <div class="score">@Fmt.Stars(Item.AvgStars) <Icon Name="star" Size="12" Filled Stroke="0" Class="star-ico" /></div>
-        <div class="small faint">@Item.RatingCount ocen</div>
+        <div class="score">@L.Stars(Item.AvgStars) <Icon Name="star" Size="12" Filled Stroke="0" Class="star-ico" /></div>
+        <div class="small faint">@L.Plural("plural.ratings", Item.RatingCount)</div>
     </div>
 </a>
 

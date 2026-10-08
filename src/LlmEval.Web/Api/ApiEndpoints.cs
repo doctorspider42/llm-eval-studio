@@ -165,7 +165,7 @@ public static class ApiEndpoints
                          "autoJudge=true makes judges rate each iteration as soon as it finishes.");
         batches.MapGet("/{id:guid}", (Guid id, EvalService s, CancellationToken ct, bool reveal = false, Guid? userId = null) =>
                 s.GetBatchAsync(id, reveal, userId, ct))
-            .WithSummary("Series overview: per-model stats (blind aliases 'Kandydat A…' unless reveal=true) and the test case × repetition matrix");
+            .WithSummary("Series overview: per-model stats (blind aliases 'A', 'B'… unless reveal=true) and the test case × repetition matrix");
         batches.MapGet("/{id:guid}/wait", async (Guid id, EvalService s, CancellationToken ct, int timeoutSeconds = 300, bool includeJudges = true) =>
             {
                 var deadline = DateTime.UtcNow.AddSeconds(Math.Clamp(timeoutSeconds, 1, 1800));

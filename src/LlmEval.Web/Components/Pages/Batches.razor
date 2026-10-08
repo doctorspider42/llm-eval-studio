@@ -4,15 +4,15 @@
 @inject EvalEvents Events
 @inject NavigationManager Nav
 
-<PageTitle>Serie · LLM Eval</PageTitle>
+<PageTitle>@L["batch.list.title"] · LLM Eval</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1>Serie</h1>
-        <div class="subtitle">Wiele przypadków × wiele modeli × N powtórzeń – odpalone, ocenione i podsumowane jako całość.</div>
+        <h1>@L["batch.list.title"]</h1>
+        <div class="subtitle">@L["batch.list.subtitle"]</div>
     </div>
     <div class="actions">
-        <button class="btn btn-primary" @onclick="() => _dialogOpen = true"><Icon Name="plus" /> Nowa seria</button>
+        <button class="btn btn-primary" @onclick="() => _dialogOpen = true"><Icon Name="plus" /> @L["batch.new"]</button>
     </div>
 </div>
 
@@ -24,9 +24,9 @@ else if (_items.Count == 0)
 {
     <div class="card empty">
         <Icon Name="list-checks" Size="44" />
-        <div>Nie ma jeszcze żadnej serii.</div>
-        <div class="small faint" style="margin-top:4px">Zaznacz kilka przypadków na liście albo kliknij „Nowa seria”.</div>
-        <button class="btn btn-primary" style="margin-top:16px" @onclick="() => _dialogOpen = true"><Icon Name="zap" /> Odpal pierwszą serię</button>
+        <div>@L["batch.list.empty"]</div>
+        <div class="small faint" style="margin-top:4px">@L["batch.list.emptyHint"]</div>
+        <button class="btn btn-primary" style="margin-top:16px" @onclick="() => _dialogOpen = true"><Icon Name="zap" /> @L["batch.list.runFirst"]</button>
     </div>
 }
 else
@@ -40,32 +40,32 @@ else
                     <div class="grow" style="min-width:0">
                         <div class="row" style="gap:8px">
                             <h3 style="font-size:16px" class="ellipsis">@b.Name</h3>
-                            @if (b.IsRunning) { <span class="badge badge-running"><span class="dot"></span>generuje</span> }
-                            else if (b.IsJudging) { <span class="badge badge-ai"><Icon Name="scale" Size="11" /> sędzia ocenia</span> }
-                            else { <span class="badge badge-completed">gotowa</span> }
-                            @if (b.AutoJudge) { <span class="badge badge-provider" title="Iteracje są oceniane przez AI automatycznie"><Icon Name="scale" Size="11" /> auto</span> }
+                            @if (b.IsRunning) { <span class="badge badge-running"><span class="dot"></span>@L["batch.badge.running"]</span> }
+                            else if (b.IsJudging) { <span class="badge badge-ai"><Icon Name="scale" Size="11" /> @L["batch.badge.judging"]</span> }
+                            else { <span class="badge badge-completed">@L["batch.badge.done"]</span> }
+                            @if (b.AutoJudge) { <span class="badge badge-provider" title="@L["batch.badge.autoTitle"]"><Icon Name="scale" Size="11" /> @L["batch.badge.auto"]</span> }
                         </div>
                         <div class="small faint" style="margin-top:2px">
-                            @b.TestCaseCount przypadków × @b.ModelCount modeli × @b.Repetitions powt. = @b.ResultTotal odpowiedzi
-                            · @(b.CreatedBy ?? "ktoś") · @Fmt.Ago(b.CreatedAt)
+                            @L["batch.calcLine", b.TestCaseCount, b.ModelCount, b.Repetitions, b.ResultTotal]
+                            · @(b.CreatedBy ?? L["common.someone"]) · @L.Ago(b.CreatedAt)
                         </div>
                         <div class="row" style="margin-top:10px;gap:14px">
                             <div class="grow">
                                 <div class="progress"><i style="width:@(b.ResultDone * 100 / Math.Max(1, b.ResultTotal))%"></i></div>
-                                <div class="small faint" style="margin-top:4px">odpowiedzi @b.ResultDone/@b.ResultTotal@(b.ResultFailed > 0 ? $" · {b.ResultFailed} błędów" : "")</div>
+                                <div class="small faint" style="margin-top:4px">@L["batch.list.answersProgress", b.ResultDone, b.ResultTotal]@(b.ResultFailed > 0 ? " · " + L.Plural("plural.errors", b.ResultFailed) : "")</div>
                             </div>
                             @if (b.JudgeTotal > 0)
                             {
                                 <div class="grow">
                                     <div class="progress"><i style="width:@(b.JudgeDone * 100 / Math.Max(1, b.JudgeTotal))%;background:linear-gradient(90deg,#f59e0b,#fde68a)"></i></div>
-                                    <div class="small faint" style="margin-top:4px">sędzia AI @b.JudgeDone/@b.JudgeTotal</div>
+                                    <div class="small faint" style="margin-top:4px">@L["batch.list.judgeProgress", b.JudgeDone, b.JudgeTotal]</div>
                                 </div>
                             }
                         </div>
                     </div>
                     <div style="text-align:right;min-width:80px">
-                        <div class="score" style="font-size:20px">@Fmt.Stars(b.AvgStars) <Icon Name="star" Size="15" Filled Stroke="0" Class="star-ico" /></div>
-                        <div class="small faint">średnio</div>
+                        <div class="score" style="font-size:20px">@L.Stars(b.AvgStars) <Icon Name="star" Size="15" Filled Stroke="0" Class="star-ico" /></div>
+                        <div class="small faint">@L["batch.list.avg"]</div>
                     </div>
                 </div>
             </a>

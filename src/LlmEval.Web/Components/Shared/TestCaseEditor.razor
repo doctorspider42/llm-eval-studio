@@ -2,40 +2,40 @@
 @inject Toaster Toasts
 @inject CurrentUser Me
 
-<Modal Open="Open" OpenChanged="OpenChanged" Title="@(Existing is null ? "Nowy przypadek testowy" : "Edytuj przypadek")" Icon="flask" Wide>
+<Modal Open="Open" OpenChanged="OpenChanged" Title="@(Existing is null ? L["testcases.editor.newTitle"] : L["testcases.editor.editTitle"])" Icon="flask" Wide>
     <ChildContent>
         <div class="stack" style="gap:16px">
             <div class="field">
-                <label>Tytuł</label>
-                <input class="input" @bind="_title" placeholder="np. Streszczenie spotkania zarządu" />
+                <label>@L["testcases.editor.title"]</label>
+                <input class="input" @bind="_title" placeholder="@L["testcases.editor.titlePh"]" />
             </div>
             <div class="field">
-                <label>Prompt</label>
-                <textarea class="textarea" rows="4" @bind="_prompt" placeholder="Co model ma zrobić? np. Streść spotkanie w 5 punktach."></textarea>
-                <div class="hint">Użyj <code class="kbd">{{data}}</code> żeby wstawić dane w konkretne miejsce – inaczej zostaną doklejone na końcu w tagach <code class="kbd">&lt;data&gt;</code>.</div>
+                <label>@L["testcases.case.prompt"]</label>
+                <textarea class="textarea" rows="4" @bind="_prompt" placeholder="@L["testcases.editor.promptPh"]"></textarea>
+                <div class="hint">@L["testcases.editor.dataHint1"] <code class="kbd">{{data}}</code> @L["testcases.editor.dataHint2"] <code class="kbd">&lt;data&gt;</code>.</div>
             </div>
             <div class="field">
-                <label>Dane</label>
-                <textarea class="textarea mono" rows="10" @bind="_data" placeholder="Transkrypcja, dokument, kod, cokolwiek…"></textarea>
+                <label>@L["testcases.case.data"]</label>
+                <textarea class="textarea mono" rows="10" @bind="_data" placeholder="@L["testcases.editor.dataPh"]"></textarea>
             </div>
             <div class="field">
-                <label>Oczekiwana odpowiedź <span class="faint">(opcjonalnie)</span></label>
-                <textarea class="textarea" rows="4" @bind="_expected" placeholder="Wzorcowa odpowiedź albo lista rzeczy, które muszą się w niej znaleźć…"></textarea>
-                <div class="hint"><Icon Name="eye-off" Size="11" /> Modele jej <b>nie widzą</b>. Dostaje ją sędzia AI (porównuje z nią odpowiedzi) i ludzie oceniający.</div>
+                <label>@L["testcases.case.expected"] <span class="faint">(@L["common.optional"])</span></label>
+                <textarea class="textarea" rows="4" @bind="_expected" placeholder="@L["testcases.editor.expectedPh"]"></textarea>
+                <div class="hint"><Icon Name="eye-off" Size="11" /> @((MarkupString)L["testcases.editor.expectedHint"])</div>
             </div>
             <details>
-                <summary class="small muted" style="cursor:pointer">System prompt (opcjonalnie)</summary>
-                <textarea class="textarea" rows="3" style="margin-top:8px" @bind="_system" placeholder="Jesteś asystentem, który…"></textarea>
+                <summary class="small muted" style="cursor:pointer">@L["testcases.case.systemPrompt"] (@L["common.optional"])</summary>
+                <textarea class="textarea" rows="3" style="margin-top:8px" @bind="_system" placeholder="@L["testcases.editor.systemPh"]"></textarea>
             </details>
             <div class="field">
-                <label>Tagi</label>
-                <input class="input" @bind="_tags" placeholder="oddzielone przecinkami, np. streszczenie, spotkanie" />
+                <label>@L["testcases.editor.tags"]</label>
+                <input class="input" @bind="_tags" placeholder="@L["testcases.editor.tagsPh"]" />
             </div>
         </div>
     </ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
-        <button class="btn btn-primary" disabled="@_saving" @onclick="Save"><Icon Name="check" /> Zapisz</button>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">@L["common.cancel"]</button>
+        <button class="btn btn-primary" disabled="@_saving" @onclick="Save"><Icon Name="check" /> @L["common.save"]</button>
     </Footer>
 </Modal>
 
@@ -70,7 +70,7 @@
             Me.User?.Id, _expected);
         TestCaseDto? saved = null;
         var ok = await Toasts.Try(async () =>
-            saved = Existing is null ? await Svc.CreateTestCaseAsync(req) : await Svc.UpdateTestCaseAsync(Existing.Id, req), "Zapisano");
+            saved = Existing is null ? await Svc.CreateTestCaseAsync(req) : await Svc.UpdateTestCaseAsync(Existing.Id, req), L["common.saved"]);
         _saving = false;
         if (ok)
         {

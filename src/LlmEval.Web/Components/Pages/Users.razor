@@ -3,15 +3,15 @@
 @inject Toaster Toasts
 @inject CurrentUser Me
 
-<PageTitle>Użytkownicy · LLM Eval</PageTitle>
+<PageTitle>@L["users.title"] · LLM Eval</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1>Użytkownicy</h1>
-        <div class="subtitle">Bez haseł – appka wewnętrzna. Boty (LLM-judge przez API) oznacz jako „bot”.</div>
+        <h1>@L["users.title"]</h1>
+        <div class="subtitle">@L["users.subtitle"]</div>
     </div>
     <div class="actions">
-        <button class="btn btn-primary" @onclick="() => Open(null)"><Icon Name="plus" /> Dodaj użytkownika</button>
+        <button class="btn btn-primary" @onclick="() => Open(null)"><Icon Name="plus" /> @L["users.add"]</button>
     </div>
 </div>
 
@@ -23,17 +23,17 @@
             <div class="grow" style="min-width:0">
                 <div class="row" style="gap:8px">
                     <b class="ellipsis">@u.Name</b>
-                    @if (u.IsAiJudge) { <span class="badge badge-ai">sędzia AI</span> }
-                    else if (u.IsBot) { <span class="badge badge-running">bot</span> }
-                    @if (Me.User?.Id == u.Id) { <span class="badge badge-completed">to Ty</span> }
+                    @if (u.IsAiJudge) { <span class="badge badge-ai">@L["users.badge.aiJudge"]</span> }
+                    else if (u.IsBot) { <span class="badge badge-running">@L["users.badge.bot"]</span> }
+                    @if (Me.User?.Id == u.Id) { <span class="badge badge-completed">@L["users.badge.you"]</span> }
                 </div>
-                <div class="small faint ellipsis">@(u.Email ?? "brak e-maila") · od @Fmt.Ago(u.CreatedAt)</div>
-                <div class="small faint mono ellipsis" title="ID do API">@u.Id</div>
+                <div class="small faint ellipsis">@(u.Email ?? L["users.noEmail"]) · @L["users.since", L.Ago(u.CreatedAt)]</div>
+                <div class="small faint mono ellipsis" title="@L["users.apiId"]">@u.Id</div>
             </div>
             <div class="stack" style="gap:4px">
                 @if (Me.User?.Id != u.Id && !u.IsAiJudge)
                 {
-                    <button class="btn btn-sm" title="Przełącz się na tego użytkownika" @onclick="() => Me.SetUserAsync(u)"><Icon Name="user" Size="13" /></button>
+                    <button class="btn btn-sm" title="@L["users.switchTo"]" @onclick="() => Me.SetUserAsync(u)"><Icon Name="user" Size="13" /></button>
                 }
                 <button class="btn btn-sm btn-ghost btn-icon" @onclick="() => Open(u)"><Icon Name="pencil" Size="13" /></button>
                 <button class="btn btn-sm btn-ghost btn-icon btn-danger" @onclick="() => _toDelete = u"><Icon Name="trash" Size="13" /></button>
@@ -42,25 +42,25 @@
     }
 </div>
 
-<Modal @bind-Open="_open" Title="@(_edit is null ? "Nowy użytkownik" : "Edytuj użytkownika")" Icon="user">
+<Modal @bind-Open="_open" Title="@(_edit is null ? L["users.modal.new"] : L["users.modal.edit"])" Icon="user">
     <ChildContent>
         <div class="stack" style="gap:14px">
-            <div class="field"><label>Nazwa</label><input class="input" @bind="_name" placeholder="Imię i nazwisko albo np. Claude Judge" /></div>
-            <div class="field"><label>E-mail (opcjonalnie)</label><input class="input" @bind="_email" /></div>
-            <label class="switch"><input type="checkbox" @bind="_isBot" /><span class="track"></span> To bot / LLM-judge</label>
+            <div class="field"><label>@L["users.field.name"]</label><input class="input" @bind="_name" placeholder="@L["users.field.namePlaceholder"]" /></div>
+            <div class="field"><label>@L["users.field.email"]</label><input class="input" @bind="_email" /></div>
+            <label class="switch"><input type="checkbox" @bind="_isBot" /><span class="track"></span> @L["users.field.isBot"]</label>
         </div>
     </ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => _open = false">Anuluj</button>
-        <button class="btn btn-primary" @onclick="Save"><Icon Name="check" /> Zapisz</button>
+        <button class="btn btn-ghost" @onclick="() => _open = false">@L["common.cancel"]</button>
+        <button class="btn btn-primary" @onclick="Save"><Icon Name="check" /> @L["common.save"]</button>
     </Footer>
 </Modal>
 
-<Modal Open="_toDelete is not null" OpenChanged="_ => _toDelete = null" Title="Usunąć użytkownika?" Icon="trash">
-    <ChildContent><div class="muted">Usunięcie <b>@_toDelete?.Name</b> skasuje też wszystkie jego oceny.</div></ChildContent>
+<Modal Open="_toDelete is not null" OpenChanged="_ => _toDelete = null" Title="@L["users.delete.title"]" Icon="trash">
+    <ChildContent><div class="muted">@L["users.delete.before"] <b>@_toDelete?.Name</b> @L["users.delete.after"]</div></ChildContent>
     <Footer>
-        <button class="btn btn-ghost" @onclick="() => _toDelete = null">Anuluj</button>
-        <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> Usuń</button>
+        <button class="btn btn-ghost" @onclick="() => _toDelete = null">@L["common.cancel"]</button>
+        <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> @L["common.delete"]</button>
     </Footer>
 </Modal>
 
@@ -85,7 +85,7 @@
     {
         var req = new UpsertUserRequest(_name ?? "", _email, _isBot);
         UserDto? saved = null;
-        if (await Toasts.Try(async () => saved = _edit is null ? await Svc.CreateUserAsync(req) : await Svc.UpdateUserAsync(_edit.Id, req), "Zapisano"))
+        if (await Toasts.Try(async () => saved = _edit is null ? await Svc.CreateUserAsync(req) : await Svc.UpdateUserAsync(_edit.Id, req), L["common.saved"]))
         {
             _open = false;
             if (Me.User?.Id == saved!.Id) await Me.SetUserAsync(saved);
@@ -97,7 +97,7 @@
     {
         var u = _toDelete!;
         _toDelete = null;
-        if (await Toasts.Try(() => Svc.DeleteUserAsync(u.Id), $"Usunięto {u.Name}"))
+        if (await Toasts.Try(() => Svc.DeleteUserAsync(u.Id), L["users.deleted", u.Name]))
         {
             if (Me.User?.Id == u.Id) await Me.SetUserAsync(null);
             _users = await Svc.GetUsersAsync();

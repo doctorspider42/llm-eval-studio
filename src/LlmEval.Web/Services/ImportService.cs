@@ -8,7 +8,7 @@ namespace LlmEval.Web.Services;
 
 /// <summary>
 /// How a source row becomes a test case. Each field is a template: <c>{{column}}</c> (or <c>{{a.b}}</c>) is replaced
-/// with the row's value; anything else is literal text, so "Odpowiedz: {{question}}" works too.
+/// with the row's value; anything else is literal text, so "Answer: {{question}}" works too.
 /// </summary>
 public record ImportMapping(string Prompt, string? Title = null, string? Data = null, string? ExpectedAnswer = null,
     string? SystemPrompt = null, string? Tags = null);
@@ -40,15 +40,15 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
     [
         new("IFEval", "google/IFEval", "default", "train", "Apache-2.0",
             new ImportMapping("{{prompt}}", Title: "IFEval {{key}}"),
-            "541 poleceń z twardymi ograniczeniami formy („bez przecinków”, „3 akapity”…)."),
+            "541 instructions with hard formatting constraints (\"no commas\", \"3 paragraphs\"…)."),
         new("GSM8K", "openai/gsm8k", "main", "test", "MIT",
             new ImportMapping("{{question}}", ExpectedAnswer: "{{answer}}"),
-            "Zadania tekstowe z matematyki z rozwiązaniem krok po kroku."),
+            "Grade-school math word problems with step-by-step solutions."),
         new("TruthfulQA", "truthfulqa/truthful_qa", "generation", "validation", "Apache-2.0",
             new ImportMapping("{{question}}", Title: "TruthfulQA: {{category}}",
-                ExpectedAnswer: "Najlepsza odpowiedź: {{best_answer}}\n\nPoprawne: {{correct_answers}}\n\nBłędne (pułapki): {{incorrect_answers}}",
+                ExpectedAnswer: "Best answer: {{best_answer}}\n\nCorrect: {{correct_answers}}\n\nIncorrect (traps): {{incorrect_answers}}",
                 Tags: "{{category}}"),
-            "Pytania-pułapki sprawdzające, czy model powtarza mity i błędne przekonania."),
+            "Trick questions that test whether a model repeats myths and misconceptions."),
     ];
 
     // ───────────────────────── parsing ─────────────────────────
@@ -62,12 +62,12 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
         {
             JsonNode? node;
             try { node = JsonNode.Parse(text); }
-            catch (JsonException ex) { throw EvalException.Invalid($"Niepoprawny JSON: {ex.Message}"); }
+            catch (JsonException ex) { throw EvalException.Invalid("errors.import.invalidJson", ex.Message); }
 
             var array = node as JsonArray
                         ?? node?["rows"] as JsonArray ?? node?["items"] as JsonArray ?? node?["data"] as JsonArray
                         ?? (node is JsonObject single ? new JsonArray(single.DeepClone()) : null)
-                        ?? throw EvalException.Invalid("Oczekuję tablicy obiektów (albo obiektu z polem rows/items/data)");
+                        ?? throw EvalException.Invalid("errors.import.expectedArray");
             return array.Select(Unwrap).OfType<JsonObject>().ToList();
         }
 
@@ -83,7 +83,7 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
             }
             catch (JsonException ex)
             {
-                throw EvalException.Invalid($"JSONL, linia {lineNo}: {ex.Message}");
+                throw EvalException.Invalid("errors.import.jsonlLine", lineNo, ex.Message);
             }
         }
         return rows;
@@ -166,7 +166,7 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
             var prompt = Render(mapping.Prompt, row);
             if (prompt.Length == 0)
             {
-                if (errors.Count < 20) errors.Add($"Wiersz {i + 1}: pusty prompt – pominięty");
+                if (errors.Count < 20) errors.Add($"Row {i + 1}: empty prompt – skipped");
                 continue;
             }
             var title = Render(mapping.Title, row);
@@ -207,12 +207,12 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
     private async Task<ImportPreview> RunAsync(List<JsonObject> rows, ImportMapping? mapping, List<string>? tags, Guid? userId, bool dryRun,
         CancellationToken ct)
     {
-        if (rows.Count == 0) throw EvalException.Invalid("Brak wierszy do zaimportowania");
-        if (rows.Count > MaxRows) throw EvalException.Invalid($"Za dużo wierszy ({rows.Count}) – limit to {MaxRows}");
+        if (rows.Count == 0) throw EvalException.Invalid("errors.import.noRows");
+        if (rows.Count > MaxRows) throw EvalException.Invalid("errors.import.tooManyRows", rows.Count, MaxRows);
 
         var columns = Columns(rows);
         mapping ??= GuessMapping(columns);
-        if (string.IsNullOrWhiteSpace(mapping.Prompt)) throw EvalException.Invalid("Ustaw szablon promptu, np. {{question}}");
+        if (string.IsNullOrWhiteSpace(mapping.Prompt)) throw EvalException.Invalid("errors.import.promptTemplateRequired");
 
         var (items, errors) = Map(rows, mapping, tags, userId);
         List<Guid> ids = [];
@@ -258,7 +258,7 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
     {
         if (string.IsNullOrWhiteSpace(config) || string.IsNullOrWhiteSpace(split))
         {
-            var first = (await HfSplitsAsync(dataset, ct)).FirstOrDefault() ?? throw EvalException.Invalid("Dataset nie ma dostępnych splitów");
+            var first = (await HfSplitsAsync(dataset, ct)).FirstOrDefault() ?? throw EvalException.Invalid("errors.import.noSplits");
             config ??= first.Config;
             split ??= first.Split;
         }
@@ -284,7 +284,7 @@ public partial class ImportService(IHttpClientFactory httpFactory, IDbContextFac
         if (!res.IsSuccessStatusCode)
         {
             var msg = JsonNode.Parse(body)?["error"]?.ToString() ?? body;
-            throw new EvalException(res.StatusCode == System.Net.HttpStatusCode.NotFound ? 404 : 400, $"Hugging Face: {msg}");
+            throw new EvalException(res.StatusCode == System.Net.HttpStatusCode.NotFound ? 404 : 400, "errors.import.huggingFace", msg);
         }
         return JsonNode.Parse(body)!;
     }

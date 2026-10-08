@@ -585,3 +585,4 @@ button.chip:hover { border-color: var(--border-strong); color: var(--text); }
 .expected-card { border-color: rgba(52,211,153,.3); background: linear-gradient(135deg, rgba(52,211,153,.06), transparent 60%); }
 .expected-card .card-title, .expected-card summary svg { color: #a7f3d0; }
 .active-field { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.lang-switch button { font-weight: 600; font-size: 12px; letter-spacing: .04em; padding: 5px 10px; }

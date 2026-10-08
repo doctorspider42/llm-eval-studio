@@ -1,0 +1,11 @@
+{
+  "iterations.title": "Iteracje",
+  "iterations.subtitle": "Wszystkie uruchomienia, od najnowszych.",
+  "iterations.filter.all": "Wszystkie",
+  "iterations.filter.unrated": "Do oceny przeze mnie",
+  "iterations.empty.allRated": "Wszystko ocenione. Szacun.",
+  "iterations.empty.none": "Brak iteracji.",
+  "iterations.row.title": "Iteracja #{0}",
+  "iterations.row.repetition": "powt. {0}",
+  "iterations.row.failed": "Nieudane odpowiedzi"
+}

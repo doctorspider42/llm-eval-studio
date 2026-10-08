@@ -4,11 +4,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LlmEval.Web.Services;
 
-public class EvalException(int statusCode, string message) : Exception(message)
+/// <summary>
+/// Domain error with a translation key (see Resources/i18n/*/errors.json). Message is the English text, which is what
+/// the REST API returns; the UI shows it in the user's language via <see cref="Localizer.Error"/>.
+/// </summary>
+public class EvalException(int statusCode, string key, params object?[] args) : Exception(I18n.Format(I18n.English, key, args))
 {
     public int StatusCode { get; } = statusCode;
-    public static EvalException NotFound(string what) => new(404, $"{what} nie istnieje");
-    public static EvalException Invalid(string msg) => new(400, msg);
+    public string Key { get; } = key;
+    public object?[] Args { get; } = args;
+
+    /// <param name="entity">user, provider, model, testCase, iteration, result, series</param>
+    public static EvalException NotFound(string entity) => new(404, $"errors.notFound.{entity}");
+    public static EvalException Invalid(string key, params object?[] args) => new(400, key, args);
+    public static EvalException Conflict(string key, params object?[] args) => new(409, key, args);
 }
 
 public static class PromptComposer
@@ -36,15 +45,15 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task<UserDto> GetUserAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var u = await db.Users.FindAsync([id], ct) ?? throw EvalException.NotFound("Użytkownik");
+        var u = await db.Users.FindAsync([id], ct) ?? throw EvalException.NotFound("user");
         return ToDto(u);
     }
 
     public async Task<UserDto> CreateUserAsync(UpsertUserRequest req, CancellationToken ct = default)
     {
-        var name = Required(req.Name, "Nazwa");
+        var name = Required(req.Name, "errors.required.name");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        if (await db.Users.AnyAsync(u => u.Name == name, ct)) throw new EvalException(409, $"Użytkownik '{name}' już istnieje");
+        if (await db.Users.AnyAsync(u => u.Name == name, ct)) throw EvalException.Conflict("errors.userExists", name);
         var user = new User { Name = name, Email = Blank(req.Email), IsBot = req.IsBot, AvatarHue = HueFor(name) };
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -54,10 +63,10 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
 
     public async Task<UserDto> UpdateUserAsync(Guid id, UpsertUserRequest req, CancellationToken ct = default)
     {
-        var name = Required(req.Name, "Nazwa");
+        var name = Required(req.Name, "errors.required.name");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var user = await db.Users.FindAsync([id], ct) ?? throw EvalException.NotFound("Użytkownik");
-        if (await db.Users.AnyAsync(u => u.Name == name && u.Id != id, ct)) throw new EvalException(409, $"Użytkownik '{name}' już istnieje");
+        var user = await db.Users.FindAsync([id], ct) ?? throw EvalException.NotFound("user");
+        if (await db.Users.AnyAsync(u => u.Name == name && u.Id != id, ct)) throw EvalException.Conflict("errors.userExists", name);
         user.Name = name;
         user.Email = Blank(req.Email);
         user.IsBot = req.IsBot || user.JudgeModelId is not null;
@@ -70,7 +79,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var n = await db.Users.Where(u => u.Id == id).ExecuteDeleteAsync(ct);
-        if (n == 0) throw EvalException.NotFound("Użytkownik");
+        if (n == 0) throw EvalException.NotFound("user");
         events.Raise();
     }
 
@@ -87,14 +96,14 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var p = await db.Providers.Include(x => x.Models).FirstOrDefaultAsync(x => x.Id == id, ct)
-                ?? throw EvalException.NotFound("Provider");
+                ?? throw EvalException.NotFound("provider");
         return ToDto(p);
     }
 
     public async Task<ProviderDto> CreateProviderAsync(UpsertProviderRequest req, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var p = new Provider { Name = Required(req.Name, "Nazwa") };
+        var p = new Provider { Name = Required(req.Name, "errors.required.name") };
         Apply(p, req);
         db.Providers.Add(p);
         await db.SaveChangesAsync(ct);
@@ -106,8 +115,8 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var p = await db.Providers.Include(x => x.Models).FirstOrDefaultAsync(x => x.Id == id, ct)
-                ?? throw EvalException.NotFound("Provider");
-        p.Name = Required(req.Name, "Nazwa");
+                ?? throw EvalException.NotFound("provider");
+        p.Name = Required(req.Name, "errors.required.name");
         Apply(p, req);
         await db.SaveChangesAsync(ct);
         events.Raise();
@@ -129,9 +138,9 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         if (await db.Results.AnyAsync(r => r.Model.ProviderId == id, ct) || await db.JudgeRuns.AnyAsync(r => r.Model.ProviderId == id, ct))
-            throw new EvalException(409, "Provider ma historię wyników – wyłącz go zamiast usuwać");
+            throw EvalException.Conflict("errors.providerHasHistory");
         var n = await db.Providers.Where(p => p.Id == id).ExecuteDeleteAsync(ct);
-        if (n == 0) throw EvalException.NotFound("Provider");
+        if (n == 0) throw EvalException.NotFound("provider");
         events.Raise();
     }
 
@@ -139,7 +148,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var p = await db.Providers.Include(x => x.Models).FirstOrDefaultAsync(x => x.Id == id, ct)
-                ?? throw EvalException.NotFound("Provider");
+                ?? throw EvalException.NotFound("provider");
         if (req.Enabled is { } enabled) p.Enabled = enabled;
         await db.SaveChangesAsync(ct);
         events.Raise();
@@ -149,14 +158,14 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task<ConnectionTestResult> TestProviderAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var p = await db.Providers.FindAsync([id], ct) ?? throw EvalException.NotFound("Provider");
+        var p = await db.Providers.FindAsync([id], ct) ?? throw EvalException.NotFound("provider");
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15));
             var models = await clients.For(p.Type).ListModelsAsync(p, cts.Token);
             var cli = p.Type is ProviderType.ClaudeCli or ProviderType.CodexCli;
-            return new ConnectionTestResult(true, cli ? "CLI – lista modeli to podpowiedzi (połączenie sprawdzi dopiero iteracja)" : $"OK – {models.Count} modeli", models);
+            return new ConnectionTestResult(true, cli ? "CLI – the model list is only a suggestion (the connection is checked when an iteration runs)" : $"OK – {models.Count} models", models);
         }
         catch (Exception ex)
         {
@@ -176,10 +185,10 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task<ModelDto> CreateModelAsync(UpsertModelRequest req, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var provider = await db.Providers.FindAsync([req.ProviderId], ct) ?? throw EvalException.NotFound("Provider");
-        var modelId = Required(req.ModelId, "ModelId");
+        var provider = await db.Providers.FindAsync([req.ProviderId], ct) ?? throw EvalException.NotFound("provider");
+        var modelId = Required(req.ModelId, "errors.required.modelId");
         if (await db.Models.AnyAsync(m => m.ProviderId == req.ProviderId && m.ModelId == modelId, ct))
-            throw new EvalException(409, $"Model '{modelId}' już jest w tym providerze");
+            throw EvalException.Conflict("errors.modelExists", modelId);
         var m = new LlmModel { ProviderId = provider.Id, Provider = provider, ModelId = modelId, DisplayName = modelId };
         Apply(m, req);
         db.Models.Add(m);
@@ -191,8 +200,8 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task<ModelDto> UpdateModelAsync(Guid id, UpsertModelRequest req, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var m = await db.Models.Include(x => x.Provider).FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw EvalException.NotFound("Model");
-        m.ModelId = Required(req.ModelId, "ModelId");
+        var m = await db.Models.Include(x => x.Provider).FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw EvalException.NotFound("model");
+        m.ModelId = Required(req.ModelId, "errors.required.modelId");
         Apply(m, req);
         await db.SaveChangesAsync(ct);
         events.Raise();
@@ -211,7 +220,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task<ModelDto> PatchModelAsync(Guid id, PatchModelRequest req, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var m = await db.Models.Include(x => x.Provider).FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw EvalException.NotFound("Model");
+        var m = await db.Models.Include(x => x.Provider).FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw EvalException.NotFound("model");
         if (req.Enabled is { } enabled) m.Enabled = enabled;
         if (req.IsJudge is { } judge) m.IsJudge = judge;
         await db.SaveChangesAsync(ct);
@@ -223,9 +232,9 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         if (await db.Results.AnyAsync(r => r.ModelId == id, ct) || await db.JudgeRuns.AnyAsync(r => r.ModelId == id, ct))
-            throw new EvalException(409, "Model ma historię wyników lub ocen – wyłącz go zamiast usuwać");
+            throw EvalException.Conflict("errors.modelHasHistory");
         var n = await db.Models.Where(m => m.Id == id).ExecuteDeleteAsync(ct);
-        if (n == 0) throw EvalException.NotFound("Model");
+        if (n == 0) throw EvalException.NotFound("model");
         events.Raise();
     }
 
@@ -266,7 +275,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var t = await db.TestCases.Include(x => x.CreatedBy).FirstOrDefaultAsync(x => x.Id == id, ct)
-                ?? throw EvalException.NotFound("Przypadek testowy");
+                ?? throw EvalException.NotFound("testCase");
         var iterations = await IterationSummaries(db.Iterations.Where(i => i.TestCaseId == id).OrderByDescending(i => i.Number))
             .ToListAsync(ct);
         return new TestCaseDto(t.Id, t.Title, t.SystemPrompt, t.Prompt, t.Data, t.Tags, t.CreatedById, t.CreatedBy?.Name,
@@ -278,7 +287,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
         Guid id;
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
         {
-            var t = new TestCase { Title = Required(req.Title, "Tytuł"), Prompt = Required(req.Prompt, "Prompt") };
+            var t = new TestCase { Title = Required(req.Title, "errors.required.title"), Prompt = Required(req.Prompt, "errors.required.prompt") };
             Apply(t, req);
             t.CreatedById = await ExistingUserId(db, req.UserId, ct);
             db.TestCases.Add(t);
@@ -293,9 +302,9 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
         {
-            var t = await db.TestCases.FindAsync([id], ct) ?? throw EvalException.NotFound("Przypadek testowy");
-            t.Title = Required(req.Title, "Tytuł");
-            t.Prompt = Required(req.Prompt, "Prompt");
+            var t = await db.TestCases.FindAsync([id], ct) ?? throw EvalException.NotFound("testCase");
+            t.Title = Required(req.Title, "errors.required.title");
+            t.Prompt = Required(req.Prompt, "errors.required.prompt");
             Apply(t, req);
             t.UpdatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
@@ -316,7 +325,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var n = await db.TestCases.Where(t => t.Id == id).ExecuteDeleteAsync(ct);
-        if (n == 0) throw EvalException.NotFound("Przypadek testowy");
+        if (n == 0) throw EvalException.NotFound("testCase");
         events.Raise();
     }
 
@@ -325,18 +334,18 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task<IterationDto> RunIterationAsync(Guid testCaseId, RunIterationRequest req, CancellationToken ct = default)
     {
         var modelIds = (req.ModelIds ?? []).Distinct().ToList();
-        if (modelIds.Count == 0) throw EvalException.Invalid("Wybierz przynajmniej jeden model");
+        if (modelIds.Count == 0) throw EvalException.Invalid("errors.selectModel");
 
         Guid iterationId;
         List<Guid> resultIds;
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
         {
-            var t = await db.TestCases.FindAsync([testCaseId], ct) ?? throw EvalException.NotFound("Przypadek testowy");
+            var t = await db.TestCases.FindAsync([testCaseId], ct) ?? throw EvalException.NotFound("testCase");
             var models = await db.Models.Include(m => m.Provider).Where(m => modelIds.Contains(m.Id)).ToListAsync(ct);
             var missing = modelIds.Except(models.Select(m => m.Id)).ToList();
-            if (missing.Count > 0) throw EvalException.Invalid($"Nieznane modele: {string.Join(", ", missing)}");
+            if (missing.Count > 0) throw EvalException.Invalid("errors.unknownModels", string.Join(", ", missing));
             var disabled = models.Where(m => !m.Enabled || !m.Provider.Enabled).Select(m => m.DisplayName).ToList();
-            if (disabled.Count > 0) throw EvalException.Invalid($"Wyłączone modele: {string.Join(", ", disabled)}");
+            if (disabled.Count > 0) throw EvalException.Invalid("errors.disabledModels", string.Join(", ", disabled));
 
             var number = (await db.Iterations.Where(i => i.TestCaseId == testCaseId).MaxAsync(i => (int?)i.Number, ct) ?? 0) + 1;
             var iteration = new Iteration
@@ -392,7 +401,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
                      .Include(i => i.Results).ThenInclude(r => r.Ratings).ThenInclude(r => r.User)
                      .Include(i => i.JudgeRuns).ThenInclude(j => j.Model).ThenInclude(m => m.Provider)
                      .FirstOrDefaultAsync(i => i.Id == id, ct)
-                 ?? throw EvalException.NotFound("Iteracja");
+                 ?? throw EvalException.NotFound("iteration");
 
         var results = it.Results.OrderBy(r => r.Slot).Select(r => new ResultDto(
             r.Id, r.Slot, r.BlindLabel,
@@ -414,14 +423,14 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var n = await db.Iterations.Where(i => i.Id == id).ExecuteDeleteAsync(ct);
-        if (n == 0) throw EvalException.NotFound("Iteracja");
+        if (n == 0) throw EvalException.NotFound("iteration");
         events.Raise();
     }
 
     public async Task RetryResultAsync(Guid resultId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var r = await db.Results.FindAsync([resultId], ct) ?? throw EvalException.NotFound("Wynik");
+        var r = await db.Results.FindAsync([resultId], ct) ?? throw EvalException.NotFound("result");
         if (r.Status is ResultStatus.Pending or ResultStatus.Running) return;
         r.Status = ResultStatus.Pending;
         r.Output = null;
@@ -449,11 +458,11 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             var it = await db.Iterations.Include(i => i.Results).FirstOrDefaultAsync(i => i.Id == iterationId, ct)
-                     ?? throw EvalException.NotFound("Iteracja");
+                     ?? throw EvalException.NotFound("iteration");
             if (it.Results.Any(r => r.Status is ResultStatus.Pending or ResultStatus.Running))
-                throw EvalException.Invalid("Poczekaj, aż wszystkie modele skończą odpowiadać");
+                throw EvalException.Invalid("errors.waitForModels");
             if (it.Results.All(r => r.Status != ResultStatus.Completed))
-                throw EvalException.Invalid("Nie ma żadnej udanej odpowiedzi do oceny");
+                throw EvalException.Invalid("errors.noSuccessfulAnswers");
 
             var judges = await ResolveJudgesAsync(db, req.JudgeModelIds, ct);
             runIds = await CreateJudgeRunsAsync(db, [iterationId], judges, skipAlreadyJudged: false, req.UserId, ct);
@@ -478,8 +487,8 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
             : await q.Where(m => m.IsJudge).ToListAsync(ct);
         if (judges.Count == 0)
             throw EvalException.Invalid(requested.Count > 0
-                ? "Wybrane modele-sędziowie nie istnieją albo są wyłączone"
-                : "Brak sędziów – oznacz model jako sędziego na stronie providerów");
+                ? "errors.judgesNotFound"
+                : "errors.noJudges");
         return judges;
     }
 
@@ -517,11 +526,11 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
 
     public async Task<RatingDto> RateAsync(Guid resultId, RateResultRequest req, CancellationToken ct = default)
     {
-        if (req.Stars is < 1 or > 5) throw EvalException.Invalid("Gwiazdki: 1–5");
+        if (req.Stars is < 1 or > 5) throw EvalException.Invalid("errors.starsRange");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var result = await db.Results.FindAsync([resultId], ct) ?? throw EvalException.NotFound("Wynik");
-        if (result.Status != ResultStatus.Completed) throw EvalException.Invalid("Można oceniać tylko zakończone odpowiedzi");
-        var user = await db.Users.FindAsync([req.UserId], ct) ?? throw EvalException.NotFound("Użytkownik");
+        var result = await db.Results.FindAsync([resultId], ct) ?? throw EvalException.NotFound("result");
+        if (result.Status != ResultStatus.Completed) throw EvalException.Invalid("errors.rateOnlyCompleted");
+        var user = await db.Users.FindAsync([req.UserId], ct) ?? throw EvalException.NotFound("user");
 
         var rating = await db.Ratings.FirstOrDefaultAsync(r => r.ResultId == resultId && r.UserId == req.UserId, ct);
         if (rating is null)
@@ -541,7 +550,7 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     public async Task DeleteRatingAsync(Guid resultId, Guid userId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var result = await db.Results.FindAsync([resultId], ct) ?? throw EvalException.NotFound("Wynik");
+        var result = await db.Results.FindAsync([resultId], ct) ?? throw EvalException.NotFound("result");
         await db.Ratings.Where(r => r.ResultId == resultId && r.UserId == userId).ExecuteDeleteAsync(ct);
         events.RaiseIteration(result.IterationId);
     }
@@ -630,8 +639,9 @@ public partial class EvalService(IDbContextFactory<AppDbContext> dbFactory, Resu
     private static async Task<Guid?> ExistingUserId(AppDbContext db, Guid? id, CancellationToken ct) =>
         id is { } uid && await db.Users.AnyAsync(u => u.Id == uid, ct) ? uid : null;
 
-    private static string Required(string? value, string field) =>
-        string.IsNullOrWhiteSpace(value) ? throw EvalException.Invalid($"Pole '{field}' jest wymagane") : value.Trim();
+    /// <param name="key">Translation key of the whole message, e.g. "errors.required.title".</param>
+    private static string Required(string? value, string key) =>
+        string.IsNullOrWhiteSpace(value) ? throw EvalException.Invalid(key) : value.Trim();
 
     private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
