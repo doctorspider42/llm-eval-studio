@@ -1,0 +1,37 @@
+<span class="cm @Css" style="--h:@Hue(Alias)" title="@Tooltip"><b>@Letter(Alias)</b>@Text</span>
+
+@code {
+    [Parameter, EditorRequired] public string Alias { get; set; } = "";
+    [Parameter] public double? Avg { get; set; }
+    [Parameter] public ResultStatus Status { get; set; }
+    [Parameter] public int? RatingCount { get; set; }
+    /// <summary>Real model name, only passed when revealed.</summary>
+    [Parameter] public string? Name { get; set; }
+
+    public static string Letter(string alias) => alias.Replace("Kandydat ", "");
+    public static int Hue(string alias) => (Letter(alias)[0] - 'A') * 67 % 360 + 210;
+
+    private string Css => Status switch
+    {
+        ResultStatus.Pending => "pending",
+        ResultStatus.Running => "running",
+        ResultStatus.Failed => "fail",
+        _ when Avg is { } a => $"h{(int)Math.Clamp(Math.Round(a), 1, 5)}",
+        _ => ""
+    };
+
+    private string Text => Status switch
+    {
+        ResultStatus.Failed => "✕",
+        ResultStatus.Pending or ResultStatus.Running => "…",
+        _ => Avg is null ? "—" : Fmt.Stars(Avg)
+    };
+
+    private string Tooltip => $"{Name ?? Alias}: " + Status switch
+    {
+        ResultStatus.Pending => "czeka w kolejce",
+        ResultStatus.Running => "generuje",
+        ResultStatus.Failed => "błąd",
+        _ => Avg is null ? "brak ocen" : $"{Fmt.Stars(Avg)}★" + (RatingCount is { } n ? $" ({n} ocen)" : "")
+    };
+}

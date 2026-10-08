@@ -1,0 +1,14 @@
+@using Markdig
+<div class="md">@((MarkupString)Html)</div>
+
+@code {
+    // HTML in LLM output is rendered as text, not markup.
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .DisableHtml()
+        .Build();
+
+    [Parameter] public string? Text { get; set; }
+
+    private string Html => Markdig.Markdown.ToHtml(Text ?? "", Pipeline);
+}

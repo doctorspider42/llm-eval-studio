@@ -1,0 +1,27 @@
+<span class="stars @(ReadOnly ? "readonly" : "")" @onmouseleave="() => _hover = 0">
+    @for (var i = 1; i <= 5; i++)
+    {
+        var n = i;
+        <button type="button" class="@(n <= Shown ? "on" : "")" title="@(ReadOnly ? null : $"{n}/5")"
+                @onmouseenter="() => { if (!ReadOnly) _hover = n; }"
+                @onclick="() => Pick(n)">
+            <Icon Name="star" Size="@Size" Filled="true" Stroke="0" />
+        </button>
+    }
+</span>
+
+@code {
+    [Parameter] public double Value { get; set; }
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public int Size { get; set; } = 18;
+
+    private int _hover;
+    private double Shown => _hover > 0 ? _hover : Math.Round(Value);
+
+    private async Task Pick(int n)
+    {
+        if (ReadOnly) return;
+        await ValueChanged.InvokeAsync(n);
+    }
+}

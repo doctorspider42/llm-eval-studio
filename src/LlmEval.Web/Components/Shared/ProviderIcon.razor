@@ -1,0 +1,16 @@
+@using LlmEval.Web.Data
+<span class="provider-icon pt-@Type" style="@(Size != 38 ? $"width:{Size}px;height:{Size}px;font-size:{Size / 3}px;border-radius:{Size / 3.4:0}px" : null)">
+    @(Type switch
+    {
+        ProviderType.OpenAI => "OAI",
+        ProviderType.Anthropic => "A\\",
+        ProviderType.Ollama => "OL",
+        ProviderType.ClaudeCli => ">_C",
+        _ => ">_X"
+    })
+</span>
+
+@code {
+    [Parameter] public ProviderType Type { get; set; }
+    [Parameter] public int Size { get; set; } = 38;
+}

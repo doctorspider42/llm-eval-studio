@@ -1,0 +1,34 @@
+@if (Open)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal @(Wide ? "wide" : "")" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                @if (Icon is not null)
+                {
+                    <span class="provider-icon" style="background:linear-gradient(135deg,var(--accent),var(--accent-2));width:34px;height:34px">
+                        <LlmEval.Web.Components.Shared.Icon Name="@Icon" Size="17" />
+                    </span>
+                }
+                <h2 class="grow">@Title</h2>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="Close"><LlmEval.Web.Components.Shared.Icon Name="x" /></button>
+            </div>
+            @ChildContent
+            @if (Footer is not null)
+            {
+                <div class="modal-foot">@Footer</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public bool Wide { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    private Task Close() => OpenChanged.InvokeAsync(false);
+}

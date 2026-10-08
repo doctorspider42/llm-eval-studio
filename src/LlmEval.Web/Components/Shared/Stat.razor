@@ -1,0 +1,11 @@
+<div class="card stat">
+    <div class="stat-value">@Value</div>
+    <div class="stat-label"><Icon Name="@IconName" Size="13" /> @Label</div>
+    <span class="stat-icon"><Icon Name="@IconName" Size="80" /></span>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public object? Value { get; set; }
+    [Parameter] public string IconName { get; set; } = "sparkles";
+}

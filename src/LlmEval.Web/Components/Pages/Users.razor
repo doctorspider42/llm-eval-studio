@@ -1,0 +1,106 @@
+@page "/users"
+@inject EvalService Svc
+@inject Toaster Toasts
+@inject CurrentUser Me
+
+<PageTitle>Użytkownicy · LLM Eval</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Użytkownicy</h1>
+        <div class="subtitle">Bez haseł – appka wewnętrzna. Boty (LLM-judge przez API) oznacz jako „bot”.</div>
+    </div>
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="() => Open(null)"><Icon Name="plus" /> Dodaj użytkownika</button>
+    </div>
+</div>
+
+<div class="grid grid-auto">
+    @foreach (var u in _users)
+    {
+        <div class="card fade-in row" style="gap:14px">
+            <Avatar Name="@u.Name" Hue="u.AvatarHue" IsBot="u.IsBot" Size="46" />
+            <div class="grow" style="min-width:0">
+                <div class="row" style="gap:8px">
+                    <b class="ellipsis">@u.Name</b>
+                    @if (u.IsAiJudge) { <span class="badge badge-ai">sędzia AI</span> }
+                    else if (u.IsBot) { <span class="badge badge-running">bot</span> }
+                    @if (Me.User?.Id == u.Id) { <span class="badge badge-completed">to Ty</span> }
+                </div>
+                <div class="small faint ellipsis">@(u.Email ?? "brak e-maila") · od @Fmt.Ago(u.CreatedAt)</div>
+                <div class="small faint mono ellipsis" title="ID do API">@u.Id</div>
+            </div>
+            <div class="stack" style="gap:4px">
+                @if (Me.User?.Id != u.Id && !u.IsAiJudge)
+                {
+                    <button class="btn btn-sm" title="Przełącz się na tego użytkownika" @onclick="() => Me.SetUserAsync(u)"><Icon Name="user" Size="13" /></button>
+                }
+                <button class="btn btn-sm btn-ghost btn-icon" @onclick="() => Open(u)"><Icon Name="pencil" Size="13" /></button>
+                <button class="btn btn-sm btn-ghost btn-icon btn-danger" @onclick="() => _toDelete = u"><Icon Name="trash" Size="13" /></button>
+            </div>
+        </div>
+    }
+</div>
+
+<Modal @bind-Open="_open" Title="@(_edit is null ? "Nowy użytkownik" : "Edytuj użytkownika")" Icon="user">
+    <ChildContent>
+        <div class="stack" style="gap:14px">
+            <div class="field"><label>Nazwa</label><input class="input" @bind="_name" placeholder="Imię i nazwisko albo np. Claude Judge" /></div>
+            <div class="field"><label>E-mail (opcjonalnie)</label><input class="input" @bind="_email" /></div>
+            <label class="switch"><input type="checkbox" @bind="_isBot" /><span class="track"></span> To bot / LLM-judge</label>
+        </div>
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="() => _open = false">Anuluj</button>
+        <button class="btn btn-primary" @onclick="Save"><Icon Name="check" /> Zapisz</button>
+    </Footer>
+</Modal>
+
+<Modal Open="_toDelete is not null" OpenChanged="_ => _toDelete = null" Title="Usunąć użytkownika?" Icon="trash">
+    <ChildContent><div class="muted">Usunięcie <b>@_toDelete?.Name</b> skasuje też wszystkie jego oceny.</div></ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="() => _toDelete = null">Anuluj</button>
+        <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> Usuń</button>
+    </Footer>
+</Modal>
+
+@code {
+    private List<UserDto> _users = [];
+    private bool _open, _isBot;
+    private UserDto? _edit, _toDelete;
+    private string? _name, _email;
+
+    protected override async Task OnInitializedAsync() => _users = await Svc.GetUsersAsync();
+
+    private void Open(UserDto? u)
+    {
+        _edit = u;
+        _name = u?.Name;
+        _email = u?.Email;
+        _isBot = u?.IsBot ?? false;
+        _open = true;
+    }
+
+    private async Task Save()
+    {
+        var req = new UpsertUserRequest(_name ?? "", _email, _isBot);
+        UserDto? saved = null;
+        if (await Toasts.Try(async () => saved = _edit is null ? await Svc.CreateUserAsync(req) : await Svc.UpdateUserAsync(_edit.Id, req), "Zapisano"))
+        {
+            _open = false;
+            if (Me.User?.Id == saved!.Id) await Me.SetUserAsync(saved);
+            _users = await Svc.GetUsersAsync();
+        }
+    }
+
+    private async Task Delete()
+    {
+        var u = _toDelete!;
+        _toDelete = null;
+        if (await Toasts.Try(() => Svc.DeleteUserAsync(u.Id), $"Usunięto {u.Name}"))
+        {
+            if (Me.User?.Id == u.Id) await Me.SetUserAsync(null);
+            _users = await Svc.GetUsersAsync();
+        }
+    }
+}

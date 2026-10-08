@@ -1,0 +1,432 @@
+@page "/iterations/{Id:guid}"
+@implements IDisposable
+@inject EvalService Svc
+@inject EvalEvents Events
+@inject Toaster Toasts
+@inject CurrentUser Me
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>@(_it is null ? "Iteracja" : $"#{_it.Number} {_it.TestCaseTitle}") · LLM Eval</PageTitle>
+
+@if (_notFound)
+{
+    <div class="card empty"><Icon Name="alert" Size="40" /><div>Ta iteracja nie istnieje.</div></div>
+}
+else if (_it is null)
+{
+    <div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:60%"></div>
+}
+else
+{
+    var done = _it.Results.Count(r => r.Status is ResultStatus.Completed or ResultStatus.Failed);
+    var myRated = _it.Results.Count(r => Mine(r) is not null);
+    var rateable = _it.Results.Count(r => r.Status == ResultStatus.Completed);
+
+    @if (_it.Batch is { } nav)
+    {
+        var allMineDone = Me.User is not null && rateable > 0 && myRated == rateable;
+        <div class="crumbs">
+            <a href="batches">Serie</a><Icon Name="chevron-right" Size="12" />
+            <a href="batches/@nav.BatchId">@nav.BatchName</a><Icon Name="chevron-right" Size="12" />
+            <span>@_it.TestCaseTitle · powt. @nav.Repetition</span>
+        </div>
+        <div class="series-bar">
+            <Icon Name="list-checks" Size="16" />
+            <a href="batches/@nav.BatchId" style="font-weight:600">@nav.BatchName</a>
+            <span class="pos">iteracja <b>@nav.Position</b>/@nav.Count · powtórzenie <b>@nav.Repetition</b>/@nav.Repetitions</span>
+            <span class="grow"></span>
+            <button class="btn btn-sm" disabled="@(nav.PrevIterationId is null)" @onclick='() => Nav.NavigateTo($"iterations/{nav.PrevIterationId}")'>
+                <Icon Name="arrow-left" Size="13" /> Poprzednia
+            </button>
+            <button class="btn btn-sm" disabled="@(nav.NextIterationId is null)" @onclick='() => Nav.NavigateTo($"iterations/{nav.NextIterationId}")'>
+                Następna <Icon Name="arrow-right" Size="13" />
+            </button>
+            @if (Me.User is not null)
+            {
+                <button class="btn btn-sm @(allMineDone ? "btn-primary" : "")" @onclick="() => GoNextUnrated(nav.BatchId)"
+                        title="Przeskocz do następnej iteracji w serii, której jeszcze nie oceniłeś">
+                    <Icon Name="star" Size="13" /> @(allMineDone ? "Oceniona – dalej" : "Następna do oceny") <Icon Name="arrow-right" Size="13" />
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="crumbs">
+            <a href="test-cases">Przypadki testowe</a><Icon Name="chevron-right" Size="12" />
+            <a href="test-cases/@_it.TestCaseId">@_it.TestCaseTitle</a><Icon Name="chevron-right" Size="12" />
+            <span>Iteracja #@_it.Number</span>
+        </div>
+    }
+    <div class="page-header">
+        <div style="min-width:0">
+            <h1>@_it.TestCaseTitle <span class="faint" style="font-weight:400">#@_it.Number</span></h1>
+            <div class="subtitle">
+                @if (_it.Note is not null) { <span>📝 @_it.Note · </span> }
+                @(_it.CreatedBy ?? "ktoś") · @Fmt.Date(_it.CreatedAt) ·
+                @if (!_it.IsComplete) { <span style="color:var(--accent-2)">generuje @done/@_it.Results.Count</span> }
+                else { <span>oceniłeś @myRated/@rateable</span> }
+            </div>
+        </div>
+        <div class="actions">
+            <div class="seg">
+                <button class="@(_cols ? "on" : "")" @onclick="() => _cols = true" title="Obok siebie"><Icon Name="columns" Size="14" /></button>
+                <button class="@(!_cols ? "on" : "")" @onclick="() => _cols = false" title="Jedna pod drugą"><Icon Name="rows" Size="14" /></button>
+            </div>
+            <div class="seg">
+                <button class="@(_raw ? "" : "on")" @onclick="() => _raw = false">Markdown</button>
+                <button class="@(_raw ? "on" : "")" @onclick="() => _raw = true">Raw</button>
+            </div>
+            <button class="btn btn-ghost btn-danger btn-icon" title="Usuń iterację" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
+            <div class="dropdown">
+                <button class="btn" disabled="@(!_it.IsComplete || rateable == 0)" @onclick="OpenJudgeMenu"
+                        title="@(_it.IsComplete ? "Model-sędzia oceni odpowiedzi na ślepo" : "Poczekaj, aż wszystkie modele skończą")">
+                    <Icon Name="scale" /> Oceń przez AI <Icon Name="chevron-down" Size="13" />
+                </button>
+                @if (_judgeOpen)
+                {
+                    <div class="click-catcher" @onclick="() => _judgeOpen = false"></div>
+                    <div class="dropdown-menu" style="min-width:300px">
+                        @if (_judges.Count == 0)
+                        {
+                            <div style="padding:10px" class="small muted">
+                                Nie ma jeszcze żadnego sędziego. Oznacz model jako <b>Sędzia AI</b> na stronie
+                                <a href="providers" style="text-decoration:underline">providerów</a>.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="small faint" style="padding:6px 10px">Kto ma oceniać? Sędzia nie wie, który model jest który.</div>
+                            @foreach (var j in _judges)
+                            {
+                                <button class="dropdown-item @(_judgeSel.Contains(j.Id) ? "on" : "")" @onclick="() => ToggleJudge(j.Id)">
+                                    <span class="check" style="@(_judgeSel.Contains(j.Id) ? "background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff" : "")"><Icon Name="check" Size="12" Stroke="3" /></span>
+                                    <ProviderIcon Type="j.ProviderType" Size="20" />
+                                    <span class="grow ellipsis">@j.DisplayName</span>
+                                </button>
+                            }
+                            <div class="dropdown-sep"></div>
+                            <div style="padding:4px">
+                                <button class="btn btn-primary btn-sm" style="width:100%" disabled="@(_judgeSel.Count == 0)" @onclick="RunJudges">
+                                    <Icon Name="zap" Size="14" /> Oceń (@_judgeSel.Count)
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <button class="btn @(_reveal ? "" : "btn-primary")" @onclick="ToggleReveal">
+                <Icon Name="@(_reveal ? "eye-off" : "eye")" /> @(_reveal ? "Ukryj modele" : "Odkryj modele")
+            </button>
+        </div>
+    </div>
+
+    @if (!_it.IsComplete)
+    {
+        <div class="progress" style="margin:-8px 0 20px"><i style="width:@(done * 100 / Math.Max(1, _it.Results.Count))%"></i></div>
+    }
+
+    @if (_it.JudgeRuns.Count > 0)
+    {
+        <div class="judge-runs" style="margin:-6px 0 16px">
+            <span class="small faint row" style="gap:6px"><Icon Name="scale" Size="13" /> Sędziowie AI:</span>
+            @foreach (var j in _it.JudgeRuns.GroupBy(j => j.ModelId).Select(g => g.Last()))
+            {
+                <span class="judge-run @j.Status.ToString().ToLowerInvariant()" title="@(j.Error ?? (j.Status == ResultStatus.Completed ? $"Ocenił w {Fmt.Ms(j.LatencyMs)}" : null))">
+                    <ProviderIcon Type="j.ProviderType" Size="20" />
+                    @j.ModelName
+                    @switch (j.Status)
+                    {
+                        case ResultStatus.Pending: <span class="faint">w kolejce</span> break;
+                        case ResultStatus.Running: <span class="typing"><i></i><i></i><i></i></span> break;
+                        case ResultStatus.Completed: <span style="color:var(--ok)">✓ @Fmt.Ms(j.LatencyMs)@(j.Error is null ? "" : " ⚠")</span> break;
+                        default: <span style="color:var(--err)">✕ błąd</span> break;
+                    }
+                </span>
+            }
+        </div>
+    }
+
+    @if (_it.ExpectedAnswer is not null)
+    {
+        <details class="card expected-card" style="margin-bottom:12px;padding:14px 18px">
+            <summary style="cursor:pointer" class="row"><Icon Name="check" /> <b>Oczekiwana odpowiedź</b>
+                <span class="faint small">– modele jej nie widziały; sędzia AI porównuje z nią odpowiedzi</span></summary>
+            <div style="margin-top:12px"><Markdown Text="@_it.ExpectedAnswer" /></div>
+        </details>
+    }
+
+    <details class="card" style="margin-bottom:18px;padding:14px 18px">
+        <summary style="cursor:pointer" class="row muted"><Icon Name="message" /> Co poszło do modeli <span class="faint small">(@(_it.UserMessage.Length.ToString("N0")) znaków)</span></summary>
+        <div style="margin-top:12px" class="stack">
+            @if (_it.SystemPrompt is not null)
+            {
+                <div class="small faint">SYSTEM</div>
+                <pre class="pre-block">@_it.SystemPrompt</pre>
+            }
+            <div class="small faint">USER</div>
+            <pre class="pre-block">@_it.UserMessage</pre>
+        </div>
+    </details>
+
+    <div class="results @(_cols ? "" : "cols-1")">
+        @foreach (var r in _it.Results)
+        {
+            var mine = Mine(r);
+            var draft = Draft(r);
+            <div class="card result-card fade-in @(r.Status == ResultStatus.Running ? "glow-border" : "")">
+                <div class="result-head">
+                    <span class="slot" style="--h:@Fmt.SlotHue(r.Slot)">@r.Slot</span>
+                    <div class="grow" style="min-width:0">
+                        <div class="result-label">@r.Label</div>
+                        @if (r.Model is { } m)
+                        {
+                            <div class="reveal-name row" style="gap:6px"><ProviderIcon Type="m.ProviderType" Size="16" /> <b>@m.DisplayName</b> <span class="faint mono">@m.ModelId</span></div>
+                        }
+                        else
+                        {
+                            <div class="small faint">model ukryty</div>
+                        }
+                    </div>
+                    @if (r.AvgStars is not null)
+                    {
+                        <span class="score" title="Średnia wszystkich ocen">@Fmt.Stars(r.AvgStars) <Icon Name="star" Size="13" Filled Stroke="0" Class="star-ico" /></span>
+                    }
+                    <StatusBadge Status="r.Status" />
+                </div>
+
+                <div class="result-body @(_expanded.Contains(r.Id) ? "expanded" : "")">
+                    @switch (r.Status)
+                    {
+                        case ResultStatus.Pending:
+                        case ResultStatus.Running:
+                            <div class="row muted" style="margin-bottom:10px"><span class="typing"><i></i><i></i><i></i></span> @(r.Status == ResultStatus.Pending ? "czeka w kolejce" : "model myśli…")</div>
+                            <div class="skeleton" style="width:92%"></div><div class="skeleton" style="width:78%"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:40%"></div>
+                            break;
+                        case ResultStatus.Failed:
+                            <div class="error-box">@r.Error</div>
+                            break;
+                        default:
+                            if (_raw) { <pre class="pre-block" style="max-height:none;color:var(--text)">@r.Output</pre> }
+                            else { <Markdown Text="@r.Output" /> }
+                            break;
+                    }
+                </div>
+
+                <div class="result-meta">
+                    <span title="Czas odpowiedzi"><Icon Name="clock" Size="12" /> @Fmt.Ms(r.LatencyMs)</span>
+                    @if (r.InputTokens is not null || r.OutputTokens is not null)
+                    {
+                        <span title="Tokeny wejście → wyjście"><Icon Name="hash" Size="12" /> @(r.InputTokens?.ToString("N0") ?? "?") → @(r.OutputTokens?.ToString("N0") ?? "?")</span>
+                    }
+                    @if (r.Output is not null)
+                    {
+                        <span>@r.Output.Length.ToString("N0") znaków</span>
+                    }
+                    <span class="grow"></span>
+                    @if (r.Status == ResultStatus.Completed)
+                    {
+                        <button class="btn btn-ghost btn-sm btn-icon" title="Rozwiń / zwiń" @onclick="() => ToggleExpand(r.Id)"><Icon Name="maximize" Size="13" /></button>
+                        <button class="btn btn-ghost btn-sm btn-icon" title="Kopiuj" @onclick="() => Copy(r.Output)"><Icon Name="copy" Size="13" /></button>
+                    }
+                    @if (r.Status is ResultStatus.Completed or ResultStatus.Failed)
+                    {
+                        <button class="btn btn-ghost btn-sm btn-icon" title="Uruchom ponownie (kasuje oceny tej odpowiedzi)" @onclick="() => Retry(r)"><Icon Name="refresh" Size="13" /></button>
+                    }
+                </div>
+
+                @if (r.Status == ResultStatus.Completed)
+                {
+                    <div class="result-rate">
+                        @if (Me.User is not null)
+                        {
+                            <div class="row">
+                                <span class="small muted grow">@(mine is null ? "Twoja ocena" : "Twoja ocena ✓")</span>
+                                <StarRating Value="draft.Stars" ValueChanged="n => RateStars(r, n)" Size="22" />
+                            </div>
+                            <div class="row" style="align-items:flex-end">
+                                <textarea class="textarea grow" rows="2" style="min-height:44px" placeholder="Komentarz – co było dobre, co do bani?"
+                                          @bind="draft.Comment" @bind:event="oninput"></textarea>
+                                <button class="btn btn-sm" disabled="@(draft.Stars == 0 || draft.Comment == mine?.Comment)" @onclick="() => SaveComment(r)"
+                                        title="@(draft.Stars == 0 ? "Najpierw daj gwiazdki" : "Zapisz komentarz")"><Icon Name="check" Size="14" /></button>
+                            </div>
+                        }
+
+                        @{ var others = r.Ratings.Where(x => x.UserId != Me.User?.Id).ToList(); }
+                        @if (others.Count > 0)
+                        {
+                            <div>
+                                @foreach (var o in others)
+                                {
+                                    <div class="comment @(o.UserIsAiJudge ? "ai" : "")">
+                                        <Avatar Name="@o.UserName" Hue="o.UserAvatarHue" IsBot="o.UserIsBot" Size="26" />
+                                        <div class="comment-body">
+                                            <div class="row" style="gap:8px">
+                                                <b class="small">@o.UserName</b>
+                                                @if (o.UserIsAiJudge) { <span class="badge badge-ai" style="padding:1px 7px;font-size:10.5px">sędzia AI</span> }
+                                                <StarRating Value="o.Stars" ReadOnly Size="12" />
+                                                <span class="small faint">@Fmt.Ago(o.UpdatedAt)</span>
+                                            </div>
+                                            @if (o.Comment is not null) { <div class="comment-text small">@o.Comment</div> }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <Modal @bind-Open="_confirmDelete" Title="Usunąć iterację?" Icon="trash">
+        <ChildContent><div class="muted">Wszystkie odpowiedzi i oceny z tej iteracji polecą w kosmos.</div></ChildContent>
+        <Footer>
+            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">Anuluj</button>
+            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> Usuń</button>
+        </Footer>
+    </Modal>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private class RatingDraft
+    {
+        public int Stars;
+        public string? Comment;
+    }
+
+    private IterationDto? _it;
+    private bool _notFound, _reveal, _raw, _cols = true, _confirmDelete;
+    private readonly HashSet<Guid> _expanded = [];
+    private readonly Dictionary<Guid, RatingDraft> _drafts = [];
+    private Guid? _draftsFor;
+    private List<ModelDto> _judges = [];
+    private readonly HashSet<Guid> _judgeSel = [];
+    private bool _judgeOpen;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Events.IterationChanged -= OnIterationChanged;
+        Events.IterationChanged += OnIterationChanged;
+        Me.Changed -= OnUserChanged;
+        Me.Changed += OnUserChanged;
+        _reveal = false;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            _it = await Svc.GetIterationAsync(Id, _reveal);
+            _notFound = false;
+            SyncDrafts();
+        }
+        catch (EvalException) { _notFound = true; }
+    }
+
+    /// <summary>Seed drafts from saved ratings, but never clobber what the user is typing.</summary>
+    private void SyncDrafts()
+    {
+        if (_draftsFor != Me.User?.Id) { _drafts.Clear(); _draftsFor = Me.User?.Id; }
+        foreach (var r in _it!.Results)
+        {
+            var mine = Mine(r);
+            if (!_drafts.TryGetValue(r.Id, out var d))
+                _drafts[r.Id] = new RatingDraft { Stars = mine?.Stars ?? 0, Comment = mine?.Comment };
+            else if (mine is null && r.Ratings.Count == 0 && r.Status != ResultStatus.Completed)
+                _drafts[r.Id] = new RatingDraft(); // result was retried
+            else if (mine is not null)
+                d.Stars = mine.Stars;
+        }
+    }
+
+    private RatingDto? Mine(ResultDto r) => Me.User is null ? null : r.Ratings.FirstOrDefault(x => x.UserId == Me.User.Id);
+
+    private RatingDraft Draft(ResultDto r) => _drafts.TryGetValue(r.Id, out var d) ? d : _drafts[r.Id] = new RatingDraft();
+
+    private async Task RateStars(ResultDto r, int stars)
+    {
+        var d = Draft(r);
+        d.Stars = stars;
+        await Toasts.Try(() => Svc.RateAsync(r.Id, new RateResultRequest(Me.User!.Id, stars, d.Comment)));
+    }
+
+    private async Task SaveComment(ResultDto r)
+    {
+        var d = Draft(r);
+        await Toasts.Try(() => Svc.RateAsync(r.Id, new RateResultRequest(Me.User!.Id, d.Stars, d.Comment)), "Komentarz zapisany");
+    }
+
+    private async Task OpenJudgeMenu()
+    {
+        _judgeOpen = !_judgeOpen;
+        if (!_judgeOpen) return;
+        _judges = await Svc.GetJudgeModelsAsync();
+        _judgeSel.RemoveWhere(id => _judges.All(j => j.Id != id));
+        if (_judgeSel.Count == 0) foreach (var j in _judges) _judgeSel.Add(j.Id);
+    }
+
+    private void ToggleJudge(Guid id)
+    {
+        if (!_judgeSel.Remove(id)) _judgeSel.Add(id);
+    }
+
+    private async Task RunJudges()
+    {
+        _judgeOpen = false;
+        await Toasts.Try(() => Svc.JudgeIterationAsync(Id, new JudgeIterationRequest(_judgeSel.ToList(), Me.User?.Id)),
+            _judgeSel.Count == 1 ? "Sędzia zakłada togę i czyta odpowiedzi…" : $"{_judgeSel.Count} sędziów zabiera się do roboty…");
+    }
+
+    private async Task GoNextUnrated(Guid batchId)
+    {
+        var next = await Svc.NextUnratedInBatchAsync(batchId, Me.User!.Id, Id);
+        if (next is { } it) Nav.NavigateTo($"iterations/{it}");
+        else Toasts.Ok("Cała seria oceniona – wracam do podsumowania 🎉");
+        if (next is null) Nav.NavigateTo($"batches/{batchId}");
+    }
+
+    private async Task ToggleReveal()
+    {
+        _reveal = !_reveal;
+        await Load();
+    }
+
+    private void ToggleExpand(Guid id)
+    {
+        if (!_expanded.Remove(id)) _expanded.Add(id);
+    }
+
+    private async Task Copy(string? text)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text ?? "");
+        Toasts.Ok("Skopiowane");
+    }
+
+    private async Task Retry(ResultDto r) =>
+        await Toasts.Try(() => Svc.RetryResultAsync(r.Id), $"{r.Label} leci jeszcze raz");
+
+    private async Task Delete()
+    {
+        var tc = _it!.TestCaseId;
+        if (await Toasts.Try(() => Svc.DeleteIterationAsync(Id), "Iteracja usunięta")) Nav.NavigateTo($"test-cases/{tc}");
+    }
+
+    private void OnIterationChanged(Guid iterationId)
+    {
+        if (iterationId != Id) return;
+        _ = InvokeAsync(async () => { await Load(); StateHasChanged(); });
+    }
+
+    private void OnUserChanged() => InvokeAsync(async () => { await Load(); StateHasChanged(); });
+
+    public void Dispose()
+    {
+        Events.IterationChanged -= OnIterationChanged;
+        Me.Changed -= OnUserChanged;
+    }
+}

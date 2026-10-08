@@ -1,0 +1,20 @@
+<span class="avatar" title="@Name"
+      style="width:@(Size)px;height:@(Size)px;font-size:@(Size * 0.4)px;background:linear-gradient(135deg,hsl(@Hue 75% 58%),hsl(@((Hue + 60) % 360) 75% 45%))">
+    @if (IsBot)
+    {
+        <Icon Name="bot" Size="@((int)(Size * 0.55))" />
+    }
+    else
+    {
+        @Initials
+    }
+</span>
+
+@code {
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public int Hue { get; set; }
+    [Parameter] public bool IsBot { get; set; }
+    [Parameter] public int Size { get; set; } = 28;
+
+    private string Initials => string.Concat(Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+}

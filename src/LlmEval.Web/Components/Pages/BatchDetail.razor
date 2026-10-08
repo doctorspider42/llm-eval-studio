@@ -1,0 +1,334 @@
+@page "/batches/{Id:guid}"
+@implements IDisposable
+@inject EvalService Svc
+@inject EvalEvents Events
+@inject Toaster Toasts
+@inject CurrentUser Me
+@inject NavigationManager Nav
+
+<PageTitle>@(_b?.Summary.Name ?? "Seria") · LLM Eval</PageTitle>
+
+@if (_notFound)
+{
+    <div class="card empty"><Icon Name="alert" Size="40" /><div>Ta seria nie istnieje.</div><a class="btn" href="batches" style="margin-top:12px">Wróć</a></div>
+}
+else if (_b is null)
+{
+    <div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:60%"></div>
+}
+else
+{
+    var s = _b.Summary;
+    var reps = Enumerable.Range(1, s.Repetitions).ToList();
+
+    <div class="crumbs"><a href="batches">Serie</a><Icon Name="chevron-right" Size="12" /><span>@s.Name</span></div>
+    <div class="page-header">
+        <div style="min-width:0">
+            <h1>@s.Name</h1>
+            <div class="subtitle">
+                @s.TestCaseCount przypadków × @s.ModelCount modeli × @s.Repetitions powt. = @s.ResultTotal odpowiedzi
+                · @(s.CreatedBy ?? "ktoś") · @Fmt.Date(s.CreatedAt)
+            </div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost btn-danger btn-icon" title="Usuń serię" @onclick="() => _confirmDelete = true"><Icon Name="trash" /></button>
+            <button class="btn" disabled="@(Me.User is null)" @onclick="GoNextUnrated" title="Przejdź do pierwszej iteracji, której jeszcze nie oceniłeś">
+                <Icon Name="star" /> Oceniaj po kolei
+            </button>
+            <div class="dropdown">
+                <button class="btn" @onclick="OpenJudgeMenu"><Icon Name="scale" /> Oceń całość przez AI <Icon Name="chevron-down" Size="13" /></button>
+                @if (_judgeOpen)
+                {
+                    <div class="click-catcher" @onclick="() => _judgeOpen = false"></div>
+                    <div class="dropdown-menu" style="min-width:320px">
+                        @if (_judges.Count == 0)
+                        {
+                            <div style="padding:10px" class="small muted">Brak sędziów. Oznacz model jako <b>Sędzia AI</b> na stronie <a href="providers" style="text-decoration:underline">providerów</a>.</div>
+                        }
+                        else
+                        {
+                            <div class="small faint" style="padding:6px 10px">Sędziowie oceniają każdą iterację na ślepo.</div>
+                            @foreach (var j in _judges)
+                            {
+                                var on = _judgeSel.Contains(j.Id);
+                                <button class="dropdown-item @(on ? "on" : "")" @onclick="() => ToggleJudge(j.Id)">
+                                    <span class="check" style="@(on ? "background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff" : "")"><Icon Name="check" Size="12" Stroke="3" /></span>
+                                    <ProviderIcon Type="j.ProviderType" Size="20" />
+                                    <span class="grow ellipsis">@j.DisplayName</span>
+                                </button>
+                            }
+                            <div class="dropdown-sep"></div>
+                            <label class="switch small" style="padding:6px 10px">
+                                <input type="checkbox" @bind="_onlyUnjudged" /><span class="track"></span> Pomiń już ocenione przez tego sędziego
+                            </label>
+                            <div style="padding:4px">
+                                <button class="btn btn-primary btn-sm" style="width:100%" disabled="@(_judgeSel.Count == 0)" @onclick="RunJudges">
+                                    <Icon Name="zap" Size="14" /> Oceń @s.IterationCount iteracji
+                                </button>
+                            </div>
+                            @if (s.IsRunning)
+                            {
+                                <div class="small faint" style="padding:6px 10px">Iteracje, które jeszcze się generują, zostaną ocenione automatycznie po zakończeniu.</div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+            <button class="btn @(_reveal ? "" : "btn-primary")" @onclick="ToggleReveal">
+                <Icon Name="@(_reveal ? "eye-off" : "eye")" /> @(_reveal ? "Ukryj modele" : "Odkryj modele")
+            </button>
+        </div>
+    </div>
+
+    @* ── progress ── *@
+    <div class="grid grid-2" style="margin-bottom:16px">
+        <div class="card" style="padding:16px 18px">
+            <div class="row small" style="margin-bottom:8px">
+                <Icon Name="sparkles" Size="14" /> <b class="grow">Odpowiedzi modeli</b>
+                <span class="mono">@s.ResultDone / @s.ResultTotal</span>
+                @if (s.ResultFailed > 0) { <span class="badge badge-failed">@s.ResultFailed ✕</span> }
+            </div>
+            <div class="progress" style="height:6px"><i style="width:@(s.ResultDone * 100 / Math.Max(1, s.ResultTotal))%"></i></div>
+            <div class="small faint" style="margin-top:6px">@(s.IsRunning ? "Generuje się… wyniki pojawiają się na żywo, możesz już oceniać gotowe." : "Wszystko wygenerowane.")</div>
+        </div>
+        <div class="card" style="padding:16px 18px">
+            <div class="row small" style="margin-bottom:8px">
+                <Icon Name="scale" Size="14" /> <b class="grow">Sędzia AI</b>
+                <span class="mono">@s.JudgeDone / @s.JudgeTotal</span>
+                <label class="switch small" title="Oceniaj automatycznie każdą iterację po zakończeniu">
+                    <input type="checkbox" checked="@s.AutoJudge" @onchange="e => SetAuto((bool)e.Value!)" /><span class="track"></span> auto
+                </label>
+            </div>
+            <div class="progress" style="height:6px"><i style="width:@(s.JudgeDone * 100 / Math.Max(1, s.JudgeTotal))%;background:linear-gradient(90deg,#f59e0b,#fde68a)"></i></div>
+            <div class="small faint" style="margin-top:6px">
+                @(s.JudgeTotal == 0 ? (s.AutoJudge ? "Sędzia wkroczy, gdy iteracje się skończą." : "Jeszcze nikt nie oceniał. Kliknij „Oceń całość przez AI”.") : s.IsJudging ? "Sędzia czyta i ocenia…" : "Sędzia skończył.")
+            </div>
+        </div>
+    </div>
+
+    @* ── per-model standings ── *@
+    <div class="card" style="margin-bottom:16px">
+        <div class="card-title"><Icon Name="trophy" /> Wyniki modeli w serii
+            <span class="grow"></span>
+            @if (!_reveal) { <span class="small faint" style="text-transform:none;letter-spacing:0;font-weight:400">„Kandydat A…” to stałe aliasy w tej serii – w iteracjach i tak są Model 1, 2…</span> }
+        </div>
+        <table class="table">
+            <thead><tr>
+                <th style="width:40px"></th><th>Model</th><th>Średnia</th><th class="num">Ludzie</th><th class="num">AI</th>
+                <th class="num" title="Ile razy był najlepszy w iteracji">Wygrane</th>
+                <th class="num" title="Odchylenie standardowe ocen – im mniej, tym stabilniej">Rozrzut σ</th>
+                <th class="num">Błędy</th><th class="num">Śr. czas</th><th class="num">Śr. tokeny</th>
+            </tr></thead>
+            <tbody>
+            @{ var rank = 0; }
+            @foreach (var m in _b.Models.OrderByDescending(m => m.AvgStars ?? -1).ThenByDescending(m => m.Wins))
+            {
+                rank++;
+                <tr>
+                    <td><span class="rank @(m.AvgStars is not null && rank <= 3 ? $"rank-{rank}" : "")">@rank</span></td>
+                    <td>
+                        @if (m.Model is { } mr)
+                        {
+                            <div class="row reveal-name"><ProviderIcon Type="mr.ProviderType" Size="26" />
+                                <div><div style="font-weight:600">@mr.DisplayName</div><div class="small faint">@m.Alias · @mr.ProviderName</div></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row"><span class="slot" style="--h:@CandidateChip.Hue(m.Alias);width:26px;height:26px;font-size:12px;border-radius:8px">@CandidateChip.Letter(m.Alias)</span>
+                                <div style="font-weight:600">@m.Alias</div></div>
+                        }
+                    </td>
+                    <td style="min-width:150px">
+                        <div class="row"><span class="score">@Fmt.Stars(m.AvgStars)</span><StarRating Value="m.AvgStars ?? 0" ReadOnly Size="13" /></div>
+                        <div class="small faint">@m.RatingCount ocen</div>
+                    </td>
+                    <td class="num">@Fmt.Stars(m.AvgStarsHuman)</td>
+                    <td class="num">@Fmt.Stars(m.AvgStarsAi)</td>
+                    <td class="num">@m.Wins</td>
+                    <td class="num">@(m.StdDev?.ToString("0.00") ?? "—")</td>
+                    <td class="num" style="@(m.Failures > 0 ? "color:var(--err)" : "")">@m.Failures/@m.Results</td>
+                    <td class="num faint">@Fmt.Ms(m.AvgLatencyMs)</td>
+                    <td class="num faint">@(m.AvgOutputTokens?.ToString("N0") ?? "—")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @* ── matrix ── *@
+    <div class="card">
+        <div class="card-title"><Icon Name="grid" /> Przypadki × powtórzenia
+            <span class="grow"></span>
+            <span class="row small faint" style="text-transform:none;letter-spacing:0;font-weight:400;gap:12px">
+                <span>litera = kandydat, liczba = średnia jego ocen (ludzie + AI), kolor = jak dobrze</span>
+                <span class="cm" style="opacity:.6"><b>·</b>czeka</span>
+                <span class="cm fail"><b>A</b>✕</span><span style="margin-left:-6px">błąd</span>
+                <span><Icon Name="scale" Size="11" /> sędzia</span>
+                <span style="color:var(--ok)">✓ oceniłeś</span>
+            </span>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="matrix">
+                <thead><tr>
+                    <th class="tc">Przypadek</th>
+                    @foreach (var r in reps) { <th>Powt. @r</th> }
+                    <th>Średnio w wierszu</th>
+                </tr></thead>
+                <tbody>
+                @foreach (var row in _b.Rows)
+                {
+                    <tr>
+                        <td class="tc"><a href="test-cases/@row.TestCaseId" class="ellipsis" style="display:block;font-weight:500" title="@row.Title">@row.Title</a></td>
+                        @foreach (var r in reps)
+                        {
+                            var c = row.Cells.FirstOrDefault(x => x.Repetition == r);
+                            <td>
+                                @if (c is not null)
+                                {
+                                    <a class="cell @(c.RatedByMe ? "mine" : "")" href="iterations/@c.IterationId" title="Iteracja #@c.Number – kliknij, żeby zobaczyć odpowiedzi">
+                                        <span class="cms">
+                                            @foreach (var m in c.Models)
+                                            {
+                                                <CandidateChip Alias="@m.Alias" Avg="m.AvgStars" Status="m.Status" RatingCount="m.RatingCount" Name="@NameOf(m.Alias)" />
+                                            }
+                                        </span>
+                                        @if (c.JudgeTotal > 0)
+                                        {
+                                            <span class="judge-mark" title="Sędzia AI @c.JudgeDone/@c.JudgeTotal"><Icon Name="scale" Size="11" Class="@(c.JudgeDone < c.JudgeTotal ? "spin-slow" : null)" /></span>
+                                        }
+                                    </a>
+                                }
+                            </td>
+                        }
+                        <td>
+                            <span class="cms" style="justify-content:center">
+                                @foreach (var m in row.ModelAvgs)
+                                {
+                                    <CandidateChip Alias="@m.Alias" Avg="m.AvgStars" Status="ResultStatus.Completed" Name="@NameOf(m.Alias)" />
+                                }
+                            </span>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <Modal @bind-Open="_confirmDelete" Title="Usunąć serię?" Icon="trash">
+        <ChildContent><div class="muted">Polecą wszystkie iteracje tej serii (@s.IterationCount), odpowiedzi i oceny.</div></ChildContent>
+        <Footer>
+            <button class="btn btn-ghost" @onclick="() => _confirmDelete = false">Anuluj</button>
+            <button class="btn btn-danger" @onclick="Delete"><Icon Name="trash" /> Usuń serię</button>
+        </Footer>
+    </Modal>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private BatchDto? _b;
+    private bool _notFound, _reveal, _judgeOpen, _onlyUnjudged = true, _confirmDelete;
+    private List<ModelDto> _judges = [];
+    private readonly HashSet<Guid> _judgeSel = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Events.Changed -= OnChanged;
+        Events.Changed += OnChanged;
+        Me.Changed -= OnUserChanged;
+        Me.Changed += OnUserChanged;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        try { _b = await Svc.GetBatchAsync(Id, _reveal, Me.User?.Id); _notFound = false; }
+        catch (EvalException) { _notFound = true; }
+    }
+
+    /// <summary>Real model name for an alias – only when revealed.</summary>
+    private string? NameOf(string alias) => _b?.Models.FirstOrDefault(m => m.Alias == alias)?.Model?.DisplayName;
+
+
+    private async Task ToggleReveal()
+    {
+        _reveal = !_reveal;
+        await Load();
+    }
+
+    private async Task OpenJudgeMenu()
+    {
+        _judgeOpen = !_judgeOpen;
+        if (!_judgeOpen) return;
+        _judges = await Svc.GetJudgeModelsAsync();
+        _judgeSel.RemoveWhere(id => _judges.All(j => j.Id != id));
+        if (_judgeSel.Count == 0) foreach (var j in _judges) _judgeSel.Add(j.Id);
+    }
+
+    private void ToggleJudge(Guid id)
+    {
+        if (!_judgeSel.Remove(id)) _judgeSel.Add(id);
+    }
+
+    private async Task RunJudges()
+    {
+        _judgeOpen = false;
+        BatchJudgeResult? res = null;
+        if (!await Toasts.Try(async () => res = await Svc.JudgeBatchAsync(Id, new JudgeBatchRequest(_judgeSel.ToList(), _onlyUnjudged, Me.User?.Id))))
+            return;
+        var msg = res!.QueuedRuns == 0 && res.Deferred == 0
+            ? "Nic do oceny – wszystko już ocenione (odznacz „Pomiń już ocenione”, żeby ocenić ponownie)"
+            : $"Sędzia ocenia {res.QueuedRuns} iteracji" + (res.Deferred > 0 ? $", kolejne {res.Deferred} oceni po zakończeniu" : "");
+        Toasts.Ok(msg);
+        await Load();
+    }
+
+    private async Task SetAuto(bool enabled)
+    {
+        if (enabled && (await Svc.GetJudgeModelsAsync()).Count == 0 && (_b?.JudgeModelIds.Count ?? 0) == 0)
+        {
+            Toasts.Error("Brak sędziów – oznacz model jako „Sędzia AI” na stronie providerów");
+            await Load();
+            return;
+        }
+        await Toasts.Try(() => Svc.SetBatchAutoJudgeAsync(Id, enabled), enabled ? "Auto-sędzia włączony" : "Auto-sędzia wyłączony");
+        await Load();
+    }
+
+    private async Task GoNextUnrated()
+    {
+        var next = await Svc.NextUnratedInBatchAsync(Id, Me.User!.Id);
+        if (next is { } it) Nav.NavigateTo($"iterations/{it}");
+        else Toasts.Ok("Wszystko w tej serii masz już ocenione 🎉");
+    }
+
+    private async Task Delete()
+    {
+        if (await Toasts.Try(() => Svc.DeleteBatchAsync(Id), "Seria usunięta")) Nav.NavigateTo("batches");
+    }
+
+    private bool _reloadPending;
+
+    private void OnChanged()
+    {
+        if (_reloadPending) return;
+        _reloadPending = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(800);
+            _reloadPending = false;
+            await Load();
+            StateHasChanged();
+        });
+    }
+
+    private void OnUserChanged() => InvokeAsync(async () => { await Load(); StateHasChanged(); });
+
+    public void Dispose()
+    {
+        Events.Changed -= OnChanged;
+        Me.Changed -= OnUserChanged;
+    }
+}

@@ -1,0 +1,79 @@
+@page "/iterations"
+@implements IDisposable
+@inject EvalService Svc
+@inject EvalEvents Events
+@inject CurrentUser Me
+
+<PageTitle>Iteracje · LLM Eval</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Iteracje</h1>
+        <div class="subtitle">Wszystkie uruchomienia, od najnowszych.</div>
+    </div>
+    <div class="actions">
+        <div class="seg">
+            <button class="@(_unrated ? "" : "on")" @onclick="() => SetUnrated(false)">Wszystkie</button>
+            <button class="@(_unrated ? "on" : "")" @onclick="() => SetUnrated(true)" disabled="@(Me.User is null)"><Icon Name="star" Size="13" /> Do oceny przeze mnie</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    @if (_items is null)
+    {
+        <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    }
+    else if (_items.Count == 0)
+    {
+        <div class="empty"><Icon Name="@(_unrated ? "check" : "layers")" Size="40" /><div>@(_unrated ? "Wszystko ocenione. Szacun." : "Brak iteracji.")</div></div>
+    }
+    else
+    {
+        <div class="stack" style="gap:4px">
+            @foreach (var it in _items) { <IterationRow Item="it" /> }
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "unrated")] public int? UnratedQuery { get; set; }
+
+    private List<IterationSummaryDto>? _items;
+    private bool _unrated;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _unrated = UnratedQuery == 1;
+        Events.Changed += OnChanged;
+        await Load();
+    }
+
+    private async Task SetUnrated(bool v)
+    {
+        _unrated = v;
+        await Load();
+    }
+
+    private async Task Load() =>
+        _items = _unrated && Me.User is not null
+            ? await Svc.GetUnratedIterationsAsync(Me.User.Id, 200)
+            : await Svc.GetIterationsAsync(take: 200);
+
+    private bool _reloadPending;
+
+    private void OnChanged()
+    {
+        if (_reloadPending) return;
+        _reloadPending = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(700);
+            _reloadPending = false;
+            await Load();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Events.Changed -= OnChanged;
+}

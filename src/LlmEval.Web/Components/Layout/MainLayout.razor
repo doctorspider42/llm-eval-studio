@@ -1,0 +1,206 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject CurrentUser Me
+@inject EvalService Svc
+@inject Toaster Toasts
+@inject NavigationManager Nav
+
+<div class="aurora"><span></span></div>
+<div class="grain"></div>
+
+<div class="shell">
+    <aside class="sidebar">
+        <a class="brand" href="">
+            <span class="brand-logo"><Icon Name="sparkles" Size="18" /></span>
+            <span>
+                <div class="brand-name">LLM Eval</div>
+                <div class="brand-sub">ślepe testy modeli</div>
+            </span>
+        </a>
+        <nav class="nav">
+            <div class="nav-label">Ewaluacja</div>
+            <NavLink href="" Match="NavLinkMatch.All"><Icon Name="dashboard" /> Dashboard</NavLink>
+            <NavLink href="test-cases"><Icon Name="flask" /> Przypadki testowe</NavLink>
+            <NavLink href="batches"><Icon Name="list-checks" /> Serie</NavLink>
+            <NavLink href="iterations"><Icon Name="layers" /> Iteracje</NavLink>
+            <div class="nav-label">Konfiguracja</div>
+            <NavLink href="providers"><Icon Name="cpu" /> Providerzy i modele</NavLink>
+            <NavLink href="users"><Icon Name="users" /> Użytkownicy</NavLink>
+            <NavLink href="api-info"><Icon Name="code" /> API &amp; skill</NavLink>
+        </nav>
+        <div class="sidebar-foot">
+            <div class="card" style="padding:14px">
+                <div class="row small muted"><Icon Name="eye-off" Size="14" /> Tryb ślepy domyślnie</div>
+                <div class="small faint" style="margin-top:4px">Modele widzisz jako „Model 1, 2…” dopóki nie klikniesz <b>Odkryj</b>.</div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <div class="spacer"></div>
+
+            <div class="dropdown">
+                <button class="btn btn-ghost btn-icon" title="Motyw" @onclick="() => _themeOpen = !_themeOpen"><Icon Name="palette" /></button>
+                @if (_themeOpen)
+                {
+                    <div class="click-catcher" @onclick="() => _themeOpen = false"></div>
+                    <div class="dropdown-menu" style="min-width:200px">
+                        @foreach (var t in CurrentUser.Themes)
+                        {
+                            <button class="dropdown-item @(Me.Theme == t.Id ? "on" : "")" @onclick="() => PickTheme(t.Id)">
+                                <span class="theme-dot" style="background:@t.Swatch"></span>
+                                <span class="grow">@t.Name</span>
+                                @if (Me.Theme == t.Id) { <Icon Name="check" Size="14" /> }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (Me.User is { } u)
+            {
+                <div class="dropdown">
+                    <button class="btn btn-ghost" style="padding-left:6px" @onclick="ToggleUserMenu">
+                        <Avatar Name="@u.Name" Hue="u.AvatarHue" IsBot="u.IsBot" Size="26" />
+                        <span>@u.Name</span>
+                        <Icon Name="chevron-down" Size="14" />
+                    </button>
+                    @if (_userOpen)
+                    {
+                        <div class="click-catcher" @onclick="() => _userOpen = false"></div>
+                        <div class="dropdown-menu">
+                            <div class="small faint" style="padding:6px 10px">Przełącz użytkownika</div>
+                            @foreach (var other in _users.Where(x => !x.IsAiJudge))
+                            {
+                                <button class="dropdown-item @(other.Id == u.Id ? "on" : "")" @onclick="() => Pick(other)">
+                                    <Avatar Name="@other.Name" Hue="other.AvatarHue" IsBot="other.IsBot" Size="22" />
+                                    <span class="grow ellipsis">@other.Name</span>
+                                    @if (other.Id == u.Id) { <Icon Name="check" Size="14" /> }
+                                </button>
+                            }
+                            <div class="dropdown-sep"></div>
+                            <button class="dropdown-item" @onclick='() => { _userOpen = false; Nav.NavigateTo("users"); }'><Icon Name="users" /> Zarządzaj użytkownikami</button>
+                            <button class="dropdown-item" @onclick="Logout"><Icon Name="logout" /> Wyloguj (wybierz ponownie)</button>
+                        </div>
+                    }
+                </div>
+            }
+        </header>
+
+        <main class="content">
+            @if (Me.Loaded)
+            {
+                @Body
+            }
+        </main>
+    </div>
+</div>
+
+@if (Me.Loaded && Me.User is null)
+{
+    <div class="splash">
+        <div class="splash-card">
+            <span class="brand-logo" style="width:64px;height:64px;border-radius:18px;margin:0 auto"><Icon Name="sparkles" Size="30" /></span>
+            <h1 class="gradient-text">Kim jesteś?</h1>
+            <div class="muted">Wybierz użytkownika – oceny będą zapisywane na jego konto. Bez haseł, jesteśmy wśród swoich.</div>
+
+            <div class="user-grid">
+                @foreach (var cand in _users.Where(x => !x.IsAiJudge))
+                {
+                    <div class="card card-hover user-tile" @onclick="() => Pick(cand)">
+                        <Avatar Name="@cand.Name" Hue="cand.AvatarHue" IsBot="cand.IsBot" Size="52" />
+                        <div style="font-weight:600">@cand.Name</div>
+                        <div class="small faint ellipsis" style="max-width:100%">@(cand.IsBot ? "bot / LLM judge" : cand.Email ?? "człowiek")</div>
+                    </div>
+                }
+            </div>
+
+            <div class="row" style="margin-top:22px">
+                <input class="input grow" placeholder="…albo dodaj siebie: imię i nazwisko" @bind="_newName" @bind:event="oninput"
+                       @onkeydown="@(async e => { if (e.Key == "Enter") await CreateAndPick(); })" />
+                <button class="btn btn-primary" disabled="@string.IsNullOrWhiteSpace(_newName)" @onclick="CreateAndPick"><Icon Name="plus" /> Dodaj</button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="toast-host">
+    @foreach (var t in Toasts.Items)
+    {
+        <div class="toast @(t.IsError ? "err" : "ok")" @onclick="() => Toasts.Dismiss(t.Id)">
+            <Icon Name="@(t.IsError ? "alert" : "check")" Size="18" />
+            <div class="grow">@t.Message</div>
+        </div>
+    }
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Wystąpił nieobsłużony błąd.
+    <a href="." class="reload">Przeładuj</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private List<UserDto> _users = [];
+    private bool _userOpen, _themeOpen;
+    private string? _newName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Me.Changed += OnChanged;
+        Toasts.Changed += OnChanged;
+        _users = await Svc.GetUsersAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await Me.InitAsync();
+    }
+
+    private async Task ToggleUserMenu()
+    {
+        _userOpen = !_userOpen;
+        if (_userOpen) _users = await Svc.GetUsersAsync();
+    }
+
+    private async Task Pick(UserDto u)
+    {
+        _userOpen = false;
+        await Me.SetUserAsync(u);
+        Toasts.Ok($"Cześć, {u.Name}!");
+    }
+
+    private async Task Logout()
+    {
+        _userOpen = false;
+        _users = await Svc.GetUsersAsync();
+        await Me.SetUserAsync(null);
+    }
+
+    private async Task PickTheme(string id)
+    {
+        _themeOpen = false;
+        await Me.SetThemeAsync(id);
+    }
+
+    private async Task CreateAndPick()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+        UserDto? created = null;
+        if (await Toasts.Try(async () => created = await Svc.CreateUserAsync(new UpsertUserRequest(_newName))))
+        {
+            _newName = null;
+            _users = await Svc.GetUsersAsync();
+            await Pick(created!);
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Me.Changed -= OnChanged;
+        Toasts.Changed -= OnChanged;
+    }
+}

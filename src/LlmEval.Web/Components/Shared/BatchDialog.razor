@@ -1,0 +1,208 @@
+@inject EvalService Svc
+@inject Toaster Toasts
+@inject CurrentUser Me
+@inject IJSRuntime JS
+
+<Modal Open="Open" OpenChanged="OpenChanged" Title="Nowa seria" Icon="list-checks" Wide>
+    <ChildContent>
+        <div class="muted" style="margin-top:-8px;margin-bottom:18px">
+            Seria odpala wybrane modele na wielu przypadkach naraz, każdy przypadek <b>N razy</b>.
+            Każde powtórzenie to osobna, ślepa iteracja – a całość oceniasz i porównujesz w jednym miejscu.
+        </div>
+
+        @if (_cases is null || _models is null)
+        {
+            <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        }
+        else
+        {
+            <div class="stack" style="gap:22px">
+                @* ── 1. test cases ── *@
+                <section>
+                    <div class="row" style="margin-bottom:10px">
+                        <span class="section-num">1</span>
+                        <b class="grow">Przypadki testowe <span class="faint" style="font-weight:400">· @_caseSel.Count z @_cases.Count</span></b>
+                        <button class="btn btn-sm btn-ghost" @onclick="SelectVisible">Zaznacz widoczne</button>
+                        <button class="btn btn-sm btn-ghost" @onclick="() => _caseSel.Clear()">Wyczyść</button>
+                    </div>
+                    <div class="row wrap" style="gap:6px;margin-bottom:10px">
+                        <div class="search" style="width:240px">
+                            <Icon Name="search" />
+                            <input class="input" style="height:32px;padding-top:4px;padding-bottom:4px" placeholder="Filtruj…" @bind="_filter" @bind:event="oninput" />
+                        </div>
+                        @foreach (var tag in _cases.SelectMany(c => c.Tags).Distinct().Order())
+                        {
+                            <button class="chip @(_tagFilter == tag ? "on" : "")" title="Pokaż tylko ten tag" @onclick="() => _tagFilter = _tagFilter == tag ? null : tag">@tag</button>
+                        }
+                    </div>
+                    <div class="picker-list">
+                        @foreach (var c in Visible)
+                        {
+                            var on = _caseSel.Contains(c.Id);
+                            <div class="picker-item @(on ? "on" : "")" @onclick="() => ToggleCase(c.Id)">
+                                <span class="check" style="@(on ? "background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff" : "")"><Icon Name="check" Size="12" Stroke="3" /></span>
+                                <span class="grow ellipsis" style="font-weight:500">@c.Title</span>
+                                @foreach (var tag in c.Tags.Take(3)) { <span class="tag">@tag</span> }
+                            </div>
+                        }
+                        @if (!Visible.Any()) { <div class="small faint" style="padding:14px">Nic nie pasuje do filtra.</div> }
+                    </div>
+                </section>
+
+                @* ── 2. models ── *@
+                <section>
+                    <div class="row" style="margin-bottom:10px">
+                        <span class="section-num">2</span>
+                        <b>Modele</b>
+                        <span class="small faint">– w każdej iteracji kolejność będzie losowana</span>
+                    </div>
+                    <ModelPicker Models="_models" Selected="_modelSel" SelectionChanged="StateHasChanged" />
+                </section>
+
+                @* ── 3. settings ── *@
+                <section>
+                    <div class="row" style="margin-bottom:12px">
+                        <span class="section-num">3</span>
+                        <b>Ustawienia</b>
+                    </div>
+                    <div class="grid" style="grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:end">
+                        <div class="field">
+                            <label>Nazwa serii</label>
+                            <input class="input" @bind="_name" placeholder="@DefaultName" />
+                        </div>
+                        <div class="field">
+                            <label>Powtórzenia każdego przypadku</label>
+                            <div class="stepper">
+                                <button @onclick="() => _reps = Math.Max(1, _reps - 1)">−</button>
+                                <span>@_reps</span>
+                                <button @onclick="() => _reps = Math.Min(20, _reps + 1)">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:14px;padding:14px 16px">
+                        <label class="switch">
+                            <input type="checkbox" @bind="_autoJudge" /><span class="track"></span>
+                            <span><b style="color:var(--text)">Auto-sędzia</b> – każda iteracja zostanie oceniona przez AI, gdy tylko modele skończą</span>
+                        </label>
+                        @if (_autoJudge)
+                        {
+                            <div class="row wrap" style="gap:6px;margin-top:12px">
+                                @if (_judges.Count == 0)
+                                {
+                                    <span class="small" style="color:var(--warn)">Brak sędziów – oznacz model jako „Sędzia AI” na stronie providerów.</span>
+                                }
+                                @foreach (var j in _judges)
+                                {
+                                    <button class="chip @(_judgeSel.Contains(j.Id) ? "on" : "")" @onclick="() => ToggleJudge(j.Id)">
+                                        <Icon Name="scale" Size="11" /> @j.DisplayName
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <div class="calc">
+                    <span><b>@_caseSel.Count</b> <span class="faint">przypadków</span></span><span class="faint">×</span>
+                    <span><b>@_modelSel.Count</b> <span class="faint">modeli</span></span><span class="faint">×</span>
+                    <span><b>@_reps</b> <span class="faint">powt.</span></span><span class="faint">=</span>
+                    <span class="eq gradient-text">@Calls</span> <span class="faint">odpowiedzi w @(_caseSel.Count * _reps) iteracjach</span>
+                    @if (_autoJudge && _judgeSel.Count > 0)
+                    {
+                        <span class="faint">+ @(_caseSel.Count * _reps * _judgeSel.Count) ocen sędziego</span>
+                    }
+                </div>
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
+        <button class="btn btn-primary" disabled="@(!CanRun || _running)" @onclick="Run">
+            <Icon Name="@(_running ? "loader" : "zap")" Class="@(_running ? "spin" : null)" /> Odpal serię (@Calls)
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private const string LastModelsKey = "llmeval.lastModels";
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public IReadOnlyCollection<Guid>? Preselected { get; set; }
+    [Parameter] public EventCallback<BatchDto> OnStarted { get; set; }
+
+    private List<TestCaseSummaryDto>? _cases;
+    private List<ModelDto>? _models;
+    private List<ModelDto> _judges = [];
+    private readonly HashSet<Guid> _caseSel = [], _modelSel = [], _judgeSel = [];
+    private string? _filter, _tagFilter, _name;
+    private int _reps = 3;
+    private bool _autoJudge, _running, _wasOpen;
+
+    private int Calls => _caseSel.Count * _modelSel.Count * _reps;
+    private bool CanRun => _caseSel.Count > 0 && _modelSel.Count > 0 && (!_autoJudge || _judgeSel.Count > 0);
+    private string DefaultName => $"Seria {DateTime.Now:yyyy-MM-dd HH:mm}";
+
+    private IEnumerable<TestCaseSummaryDto> Visible => _cases!
+        .Where(c => _tagFilter is null || c.Tags.Contains(_tagFilter))
+        .Where(c => string.IsNullOrWhiteSpace(_filter) || c.Title.Contains(_filter, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !_wasOpen)
+        {
+            _wasOpen = true;
+            _name = null;
+            _filter = _tagFilter = null;
+            // Preselected cases go on top so you can see what you came with; order is fixed while the dialog is open.
+            var pre = Preselected ?? [];
+            _cases = (await Svc.GetTestCasesAsync()).OrderBy(c => pre.Contains(c.Id) ? 0 : 1).ThenBy(c => c.Title).ToList();
+            _models = await Svc.GetModelsAsync();
+            _judges = await Svc.GetJudgeModelsAsync();
+
+            _caseSel.Clear();
+            foreach (var id in Preselected ?? []) _caseSel.Add(id);
+
+            _modelSel.Clear();
+            var last = await JS.InvokeAsync<string?>("localStorage.getItem", LastModelsKey);
+            foreach (var s in (last ?? "").Split(','))
+                if (Guid.TryParse(s, out var id) && _models.Any(m => m.Id == id && m.Enabled && m.ProviderEnabled))
+                    _modelSel.Add(id);
+
+            _judgeSel.Clear();
+            foreach (var j in _judges) _judgeSel.Add(j.Id);
+            _autoJudge = _judges.Count > 0;
+        }
+        _wasOpen = Open;
+    }
+
+    private void ToggleCase(Guid id)
+    {
+        if (!_caseSel.Remove(id)) _caseSel.Add(id);
+    }
+
+    private void ToggleJudge(Guid id)
+    {
+        if (!_judgeSel.Remove(id)) _judgeSel.Add(id);
+    }
+
+    private void SelectVisible()
+    {
+        foreach (var c in Visible) _caseSel.Add(c.Id);
+    }
+
+    private async Task Run()
+    {
+        _running = true;
+        BatchDto? batch = null;
+        var req = new CreateBatchRequest(_caseSel.ToList(), _modelSel.ToList(), _reps, _name ?? DefaultName, null, Me.User?.Id,
+            _autoJudge, _autoJudge ? _judgeSel.ToList() : null);
+        var ok = await Toasts.Try(async () => batch = await Svc.CreateBatchAsync(req), $"Seria wystartowała – {Calls} odpowiedzi w kolejce");
+        _running = false;
+        if (!ok) return;
+        await JS.InvokeVoidAsync("localStorage.setItem", LastModelsKey, string.Join(',', _modelSel));
+        await OpenChanged.InvokeAsync(false);
+        await OnStarted.InvokeAsync(batch!);
+    }
+}

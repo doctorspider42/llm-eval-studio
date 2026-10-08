@@ -1,0 +1,32 @@
+<a class="row card-hover" href="iterations/@Item.Id" style="padding:10px 12px;border-radius:12px;border:1px solid transparent">
+    <span class="rank">#@Item.Number</span>
+    <div class="grow" style="min-width:0">
+        <div class="ellipsis" style="font-weight:500">@(ShowTitle ? Item.TestCaseTitle : Item.Note ?? $"Iteracja #{Item.Number}")</div>
+        <div class="small faint ellipsis">
+            @Item.ResultCount modeli · @Fmt.Ago(Item.CreatedAt)@(Item.CreatedBy is null ? "" : $" · {Item.CreatedBy}")
+            @if (ShowTitle && Item.Note is not null) { <span> · @Item.Note</span> }
+            @if (Item.BatchName is not null) { <span class="series-pill"><Icon Name="list-checks" Size="10" /> @Item.BatchName · powt. @Item.Repetition</span> }
+        </div>
+        @if (Item.IsRunning)
+        {
+            <div class="progress" style="margin-top:6px"><i style="width:@((Item.CompletedCount + Item.FailedCount) * 100 / Math.Max(1, Item.ResultCount))%"></i></div>
+        }
+    </div>
+    @if (Item.IsRunning)
+    {
+        <span class="badge badge-running"><span class="dot"></span>@(Item.CompletedCount + Item.FailedCount)/@Item.ResultCount</span>
+    }
+    else if (Item.FailedCount > 0)
+    {
+        <span class="badge badge-failed" title="Nieudane odpowiedzi">@Item.FailedCount ✕</span>
+    }
+    <div style="text-align:right;min-width:74px">
+        <div class="score">@Fmt.Stars(Item.AvgStars) <Icon Name="star" Size="12" Filled Stroke="0" Class="star-ico" /></div>
+        <div class="small faint">@Item.RatingCount ocen</div>
+    </div>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public IterationSummaryDto Item { get; set; } = null!;
+    [Parameter] public bool ShowTitle { get; set; } = true;
+}

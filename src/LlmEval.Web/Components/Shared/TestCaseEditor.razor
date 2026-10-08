@@ -1,0 +1,81 @@
+@inject EvalService Svc
+@inject Toaster Toasts
+@inject CurrentUser Me
+
+<Modal Open="Open" OpenChanged="OpenChanged" Title="@(Existing is null ? "Nowy przypadek testowy" : "Edytuj przypadek")" Icon="flask" Wide>
+    <ChildContent>
+        <div class="stack" style="gap:16px">
+            <div class="field">
+                <label>Tytuł</label>
+                <input class="input" @bind="_title" placeholder="np. Streszczenie spotkania zarządu" />
+            </div>
+            <div class="field">
+                <label>Prompt</label>
+                <textarea class="textarea" rows="4" @bind="_prompt" placeholder="Co model ma zrobić? np. Streść spotkanie w 5 punktach."></textarea>
+                <div class="hint">Użyj <code class="kbd">{{data}}</code> żeby wstawić dane w konkretne miejsce – inaczej zostaną doklejone na końcu w tagach <code class="kbd">&lt;data&gt;</code>.</div>
+            </div>
+            <div class="field">
+                <label>Dane</label>
+                <textarea class="textarea mono" rows="10" @bind="_data" placeholder="Transkrypcja, dokument, kod, cokolwiek…"></textarea>
+            </div>
+            <div class="field">
+                <label>Oczekiwana odpowiedź <span class="faint">(opcjonalnie)</span></label>
+                <textarea class="textarea" rows="4" @bind="_expected" placeholder="Wzorcowa odpowiedź albo lista rzeczy, które muszą się w niej znaleźć…"></textarea>
+                <div class="hint"><Icon Name="eye-off" Size="11" /> Modele jej <b>nie widzą</b>. Dostaje ją sędzia AI (porównuje z nią odpowiedzi) i ludzie oceniający.</div>
+            </div>
+            <details>
+                <summary class="small muted" style="cursor:pointer">System prompt (opcjonalnie)</summary>
+                <textarea class="textarea" rows="3" style="margin-top:8px" @bind="_system" placeholder="Jesteś asystentem, który…"></textarea>
+            </details>
+            <div class="field">
+                <label>Tagi</label>
+                <input class="input" @bind="_tags" placeholder="oddzielone przecinkami, np. streszczenie, spotkanie" />
+            </div>
+        </div>
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
+        <button class="btn btn-primary" disabled="@_saving" @onclick="Save"><Icon Name="check" /> Zapisz</button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public TestCaseDto? Existing { get; set; }
+    [Parameter] public EventCallback<TestCaseDto> OnSaved { get; set; }
+
+    private string? _title, _prompt, _data, _system, _tags, _expected;
+    private bool _saving, _wasOpen;
+
+    protected override void OnParametersSet()
+    {
+        if (Open && !_wasOpen)
+        {
+            _title = Existing?.Title;
+            _prompt = Existing?.Prompt;
+            _data = Existing?.Data;
+            _system = Existing?.SystemPrompt;
+            _expected = Existing?.ExpectedAnswer;
+            _tags = Existing is null ? null : string.Join(", ", Existing.Tags);
+        }
+        _wasOpen = Open;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        var req = new UpsertTestCaseRequest(_title ?? "", _prompt ?? "", _data, _system,
+            (_tags ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            Me.User?.Id, _expected);
+        TestCaseDto? saved = null;
+        var ok = await Toasts.Try(async () =>
+            saved = Existing is null ? await Svc.CreateTestCaseAsync(req) : await Svc.UpdateTestCaseAsync(Existing.Id, req), "Zapisano");
+        _saving = false;
+        if (ok)
+        {
+            await OpenChanged.InvokeAsync(false);
+            await OnSaved.InvokeAsync(saved!);
+        }
+    }
+}

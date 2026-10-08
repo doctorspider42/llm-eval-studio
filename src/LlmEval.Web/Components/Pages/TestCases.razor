@@ -1,0 +1,148 @@
+@page "/test-cases"
+@implements IDisposable
+@inject EvalService Svc
+@inject EvalEvents Events
+@inject NavigationManager Nav
+
+<PageTitle>Przypadki testowe · LLM Eval</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Przypadki testowe</h1>
+        <div class="subtitle">Prompt + dane = przypadek. Zaznacz kilka (☐ w rogu karty), żeby odpalić je razem jako serię.</div>
+    </div>
+    <div class="actions">
+        <button class="btn" @onclick="() => _importOpen = true"><Icon Name="file" /> Import</button>
+        <button class="btn" @onclick="() => _batchOpen = true"><Icon Name="list-checks" /> Nowa seria</button>
+        <button class="btn btn-primary" @onclick="() => _editorOpen = true"><Icon Name="plus" /> Nowy przypadek</button>
+    </div>
+</div>
+
+<div class="row wrap" style="margin-bottom:18px">
+    <div class="search" style="width:340px;max-width:100%">
+        <Icon Name="search" />
+        <input class="input" placeholder="Szukaj w tytułach i promptach…" @bind="_search" @bind:event="oninput" @bind:after="Reload" />
+    </div>
+    <button class="chip @(_tag is null ? "on" : "")" @onclick="() => SetTag(null)">wszystkie</button>
+    @foreach (var t in _tags)
+    {
+        <button class="chip @(_tag == t ? "on" : "")" @onclick="() => SetTag(t)"><Icon Name="tag" Size="11" /> @t</button>
+    }
+</div>
+
+@if (_items is null)
+{
+    <div class="grid grid-auto">@for (var i = 0; i < 6; i++) { <div class="card"><div class="skeleton" style="width:70%;height:16px"></div><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div> }</div>
+}
+else if (_items.Count == 0)
+{
+    <div class="card empty"><Icon Name="flask" Size="44" /><div>Nic tu nie ma. Dodaj pierwszy przypadek albo zmień filtr.</div></div>
+}
+else
+{
+    <div class="grid grid-auto @(_selected.Count > 0 ? "selecting" : "")">
+        @foreach (var t in _items)
+        {
+            var sel = _selected.Contains(t.Id);
+            <div class="card card-hover fade-in stack @(sel ? "selected" : "")" style="gap:10px"
+                 @onclick='() => { if (_selected.Count > 0) ToggleSel(t.Id); else Nav.NavigateTo($"test-cases/{t.Id}"); }'>
+                <span class="sel-box @(sel ? "on" : "")" title="Zaznacz do serii" @onclick="() => ToggleSel(t.Id)" @onclick:stopPropagation="true">
+                    <Icon Name="check" Size="13" Stroke="3" />
+                </span>
+                <div class="row" style="align-items:flex-start;padding-right:28px">
+                    <h3 class="grow" style="font-size:16px">@t.Title</h3>
+                    @if (t.AvgStars is not null)
+                    {
+                        <span class="score" style="white-space:nowrap">@Fmt.Stars(t.AvgStars) <Icon Name="star" Size="13" Filled Stroke="0" Class="star-ico" /></span>
+                    }
+                </div>
+                <div class="muted small clamp-3">@t.PromptPreview</div>
+                <div class="row wrap" style="gap:6px;margin-top:auto">
+                    @foreach (var tag in t.Tags) { <span class="tag">@tag</span> }
+                </div>
+                <div class="row small faint">
+                    <Icon Name="layers" Size="13" /> @t.IterationCount iteracji
+                    <span class="grow"></span>
+                    @(t.LastRunAt is null ? "nigdy nie odpalony" : $"ostatnio {Fmt.Ago(t.LastRunAt)}")
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (_selected.Count > 0)
+{
+    <div class="action-bar">
+        <span><b>@_selected.Count</b> <span class="muted">zaznaczonych</span></span>
+        <button class="btn btn-sm btn-ghost" @onclick="SelectAllVisible">Zaznacz wszystkie widoczne (@(_items?.Count ?? 0))</button>
+        <button class="btn btn-sm btn-ghost" @onclick="() => _selected.Clear()">Odznacz</button>
+        <button class="btn btn-primary" @onclick="() => _batchOpen = true"><Icon Name="list-checks" /> Odpal serię</button>
+    </div>
+}
+
+<TestCaseEditor @bind-Open="_editorOpen" OnSaved='t => Nav.NavigateTo($"test-cases/{t.Id}")' />
+<BatchDialog @bind-Open="_batchOpen" Preselected="_selected" OnStarted='b => Nav.NavigateTo($"batches/{b.Summary.Id}")' />
+<ImportDialog @bind-Open="_importOpen" OnImported="OnImported" />
+
+@code {
+    private List<TestCaseSummaryDto>? _items;
+    private List<string> _tags = [];
+    private string? _search, _tag;
+    private bool _editorOpen, _batchOpen, _importOpen;
+
+    /// <summary>Show just the imported cases, already selected, so "Odpal serię" is one click away.</summary>
+    private async Task OnImported((List<Guid> Ids, string? Tag) r)
+    {
+        _search = null;
+        _tag = r.Tag;
+        await Reload();
+        _selected.Clear();
+        foreach (var id in r.Ids) _selected.Add(id);
+    }
+    private readonly HashSet<Guid> _selected = [];
+
+    private void ToggleSel(Guid id)
+    {
+        if (!_selected.Remove(id)) _selected.Add(id);
+    }
+
+    private void SelectAllVisible()
+    {
+        foreach (var t in _items ?? []) _selected.Add(t.Id);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Events.Changed += OnChanged;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _items = await Svc.GetTestCasesAsync(_search, _tag);
+        _tags = await Svc.GetTagsAsync();
+    }
+
+    private async Task SetTag(string? tag)
+    {
+        _tag = tag;
+        await Reload();
+    }
+
+    private bool _reloadPending;
+
+    private void OnChanged()
+    {
+        if (_reloadPending) return;
+        _reloadPending = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(800);
+            _reloadPending = false;
+            await Reload();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Events.Changed -= OnChanged;
+}

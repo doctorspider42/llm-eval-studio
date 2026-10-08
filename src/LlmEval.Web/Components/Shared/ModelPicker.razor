@@ -1,0 +1,65 @@
+@if (Models.Count == 0)
+{
+    <div class="empty"><Icon Name="cpu" Size="40" /><div>Brak modeli. <a href="providers" style="text-decoration:underline">Dodaj providera</a>.</div></div>
+}
+else
+{
+    <div class="row" style="margin-bottom:10px">
+        <span class="small muted grow">Wybrano: <b>@Selected.Count</b></span>
+        <button class="btn btn-sm btn-ghost" @onclick="SelectAllAvailable">Zaznacz wszystkie dostępne</button>
+        <button class="btn btn-sm btn-ghost" @onclick="Clear">Wyczyść</button>
+    </div>
+    <div class="stack" style="gap:14px">
+        @foreach (var g in Models.GroupBy(m => (m.ProviderId, m.ProviderName, m.ProviderType, m.ProviderEnabled)))
+        {
+            <div>
+                <div class="row small" style="margin-bottom:8px">
+                    <ProviderIcon Type="g.Key.ProviderType" Size="20" />
+                    <b>@g.Key.ProviderName</b>
+                    @if (!g.Key.ProviderEnabled) { <span class="faint">(provider wyłączony)</span> }
+                </div>
+                <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px">
+                    @foreach (var m in g)
+                    {
+                        var available = m.Enabled && m.ProviderEnabled;
+                        <div class="model-pick @(Selected.Contains(m.Id) ? "on" : "") @(available ? "" : "off")" @onclick="() => Toggle(m, available)">
+                            <span class="check"><Icon Name="check" Size="12" Stroke="3" /></span>
+                            <div class="grow" style="min-width:0">
+                                <div class="ellipsis" style="font-weight:500">@m.DisplayName</div>
+                                <div class="small faint ellipsis mono">@m.ModelId</div>
+                            </div>
+                            @if (ShowJudgeBadge && m.IsJudge) { <span title="Sędzia AI"><Icon Name="scale" Size="13" Class="star-ico" /></span> }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<ModelDto> Models { get; set; } = [];
+    /// <summary>Mutated in place; SelectionChanged lets the parent re-render its summary.</summary>
+    [Parameter, EditorRequired] public HashSet<Guid> Selected { get; set; } = [];
+    [Parameter] public EventCallback SelectionChanged { get; set; }
+    [Parameter] public bool ShowJudgeBadge { get; set; }
+
+    private Task Toggle(ModelDto m, bool available)
+    {
+        if (!available) return Task.CompletedTask;
+        if (!Selected.Remove(m.Id)) Selected.Add(m.Id);
+        return SelectionChanged.InvokeAsync();
+    }
+
+    private Task SelectAllAvailable()
+    {
+        foreach (var m in Models.Where(m => m.Enabled && m.ProviderEnabled)) Selected.Add(m.Id);
+        return SelectionChanged.InvokeAsync();
+    }
+
+    private Task Clear()
+    {
+        Selected.Clear();
+        return SelectionChanged.InvokeAsync();
+    }
+}

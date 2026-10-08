@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "LlmEval.AppHost.csproj"
+  }
+}

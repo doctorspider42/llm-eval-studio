@@ -1,0 +1,15 @@
+@using LlmEval.Web.Data
+<span class="badge badge-@Status.ToString().ToLowerInvariant()">
+    <span class="dot"></span>
+    @(Status switch
+    {
+        ResultStatus.Pending => "W kolejce",
+        ResultStatus.Running => "Generuje…",
+        ResultStatus.Completed => "Gotowe",
+        _ => "Błąd"
+    })
+</span>
+
+@code {
+    [Parameter] public ResultStatus Status { get; set; }
+}

@@ -1,0 +1,340 @@
+@using System.Text.Json.Nodes
+@inject ImportService Import
+@inject Toaster Toasts
+@inject CurrentUser Me
+
+<Modal Open="Open" OpenChanged="OpenChanged" Title="Import przypadków testowych" Icon="file" Wide>
+    <ChildContent>
+        @* ── 1. source ── *@
+        <section>
+            <div class="row" style="margin-bottom:12px">
+                <span class="section-num">1</span><b class="grow">Skąd</b>
+                <div class="seg">
+                    <button class="@(_source == "file" ? "on" : "")" @onclick='() => _source = "file"'><Icon Name="file" Size="13" /> Plik / wklej</button>
+                    <button class="@(_source == "hf" ? "on" : "")" @onclick='() => _source = "hf"'>🤗 Hugging Face</button>
+                </div>
+            </div>
+
+            @if (_source == "file")
+            {
+                <div class="stack" style="gap:10px">
+                    <div class="row wrap">
+                        <label class="btn">
+                            <Icon Name="file" /> Wybierz plik .json / .jsonl
+                            <InputFile OnChange="OnFile" accept=".json,.jsonl,.ndjson,.txt" style="display:none" />
+                        </label>
+                        @if (_fileName is not null)
+                        {
+                            <span class="chip on"><Icon Name="file" Size="11" /> @_fileName · @(_text?.Length.ToString("N0")) znaków</span>
+                            <button class="btn btn-sm btn-ghost" @onclick="ClearFile"><Icon Name="x" Size="13" /></button>
+                        }
+                        else
+                        {
+                            <span class="small faint">albo wklej poniżej</span>
+                        }
+                    </div>
+                    @if (_fileName is null)
+                    {
+                        <textarea class="textarea mono" rows="6" @bind="_text"
+                                  placeholder='[{"title":"…","prompt":"…","data":"…","expectedAnswer":"…","tags":["…"]}]&#10;albo JSONL – jeden obiekt na linię. Kolumny o innych nazwach zmapujesz w kroku 2.'></textarea>
+                    }
+                    <div><button class="btn btn-primary btn-sm" disabled="@string.IsNullOrWhiteSpace(_text)" @onclick="LoadText"><Icon Name="arrow-right" Size="13" /> Wczytaj wiersze</button></div>
+                </div>
+            }
+            else
+            {
+                <div class="grid grid-3" style="margin-bottom:12px">
+                    @foreach (var p in ImportService.Presets)
+                    {
+                        <div class="card card-hover @(_dataset == p.Dataset ? "selected" : "")" style="padding:12px 14px" @onclick="() => ApplyPreset(p)">
+                            <div class="row"><b class="grow">@p.Label</b><span class="tag">@p.License</span></div>
+                            <div class="small faint mono">@p.Dataset</div>
+                            <div class="small muted" style="margin-top:6px">@p.Description</div>
+                        </div>
+                    }
+                </div>
+                <div class="grid" style="grid-template-columns:2fr 1.2fr 1fr .7fr .7fr auto;gap:8px;align-items:end">
+                    <div class="field"><label>Dataset</label><input class="input mono" @bind="_dataset" @bind:after="OnDatasetChanged" placeholder="org/nazwa" /></div>
+                    <div class="field">
+                        <label>Config / split</label>
+                        <select class="select" @bind="_splitKey">
+                            @if (_splits.Count == 0) { <option value="">(sprawdź dataset)</option> }
+                            @foreach (var sp in _splits) { <option value="@($"{sp.Config}|{sp.Split}")">@sp.Config / @sp.Split</option> }
+                        </select>
+                    </div>
+                    <div class="field"><label>Od wiersza</label><input class="input" type="number" min="0" @bind="_offset" /></div>
+                    <div class="field"><label>Ile</label><input class="input" type="number" min="1" max="2000" @bind="_length" /></div>
+                    <div></div>
+                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_dataset) || _busy)" @onclick="LoadHf">
+                        <Icon Name="@(_busy ? "loader" : "arrow-right")" Class="@(_busy ? "spin" : null)" Size="14" /> Wczytaj
+                    </button>
+                </div>
+                <div class="hint" style="margin-top:6px">Wiersze pobierane z publicznego API datasets-server Hugging Face (max 2000 naraz). Sprawdź licencję zbioru na jego karcie.</div>
+            }
+        </section>
+
+        @if (_rows is not null)
+        {
+            <div class="divider"></div>
+
+            @* ── 2. mapping ── *@
+            <section>
+                <div class="row" style="margin-bottom:10px">
+                    <span class="section-num">2</span>
+                    <b class="grow">Mapowanie <span class="faint" style="font-weight:400">· @_rows.Count wierszy</span></b>
+                </div>
+                <div class="small muted" style="margin-bottom:8px">
+                    Kliknij kolumnę, żeby wstawić <code class="kbd">{{kolumna}}</code> do aktywnego pola (<b>@FieldLabel(_active)</b>). Możesz dopisać własny tekst wokół.
+                </div>
+                <div class="row wrap" style="gap:6px;margin-bottom:14px">
+                    @foreach (var col in _columns)
+                    {
+                        <button class="chip" title="@Sample(col)" @onclick="() => InsertColumn(col)"><Icon Name="plus" Size="10" /> @col</button>
+                    }
+                </div>
+                <div class="grid grid-2" style="gap:12px">
+                    @foreach (var f in Fields)
+                    {
+                        <div class="field">
+                            <label>@FieldLabel(f) @if (f == "prompt") { <span style="color:var(--err)">*</span> }</label>
+                            @if (f is "prompt" or "data" or "expected")
+                            {
+                                <textarea class="textarea mono @(_active == f ? "active-field" : "")" rows="2" style="min-height:44px"
+                                          value="@Get(f)" @onfocus="() => _active = f" @onchange="e => Set(f, e.Value?.ToString())"></textarea>
+                            }
+                            else
+                            {
+                                <input class="input mono @(_active == f ? "active-field" : "")" value="@Get(f)"
+                                       @onfocus="() => _active = f" @onchange="e => Set(f, e.Value?.ToString())" />
+                            }
+                        </div>
+                    }
+                    <div class="field">
+                        <label>Dodatkowe tagi dla wszystkich</label>
+                        <input class="input" @bind="_extraTags" @bind:after="Recompute" placeholder="np. import, gsm8k" />
+                    </div>
+                </div>
+            </section>
+
+            <div class="divider"></div>
+
+            @* ── 3. preview ── *@
+            <section>
+                <div class="row" style="margin-bottom:10px">
+                    <span class="section-num">3</span>
+                    <b class="grow">Podgląd</b>
+                    <span class="small"><b>@_mappedCount</b> <span class="faint">przypadków</span>@if (_skipped > 0) { <span style="color:var(--warn)"> · @_skipped pominiętych (pusty prompt)</span> }</span>
+                </div>
+                <div class="stack" style="gap:8px">
+                    @foreach (var it in _preview)
+                    {
+                        <div class="card" style="padding:12px 14px">
+                            <div class="row" style="gap:6px"><b class="grow ellipsis">@it.Title</b>@foreach (var t in it.Tags ?? []) { <span class="tag">@t</span> }</div>
+                            <div class="small muted clamp-3" style="white-space:pre-wrap;margin-top:4px">@it.Prompt</div>
+                            @if (it.Data is not null) { <div class="small faint clamp-2 mono" style="margin-top:6px">📄 @it.Data</div> }
+                            @if (it.ExpectedAnswer is not null) { <div class="small clamp-2" style="margin-top:6px;color:#a7f3d0">✓ @it.ExpectedAnswer</div> }
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
+        <button class="btn btn-primary" disabled="@(_rows is null || _mappedCount == 0 || _busy)" @onclick="DoImport">
+            <Icon Name="check" /> Importuj @_mappedCount
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    /// <summary>Called with the created test case ids and the tag they all share.</summary>
+    [Parameter] public EventCallback<(List<Guid> Ids, string? Tag)> OnImported { get; set; }
+
+    private static readonly string[] Fields = ["prompt", "title", "data", "expected", "system", "tags"];
+
+    private string _source = "file", _active = "prompt";
+    private string? _text, _fileName, _dataset, _splitKey, _extraTags;
+    private int _offset, _length = 50;
+    private List<HfSplit> _splits = [];
+    private List<JsonObject>? _rows;
+    private List<string> _columns = [];
+    private ImportMapping _map = new("");
+    private List<UpsertTestCaseRequest> _preview = [];
+    private int _mappedCount, _skipped;
+    private bool _busy, _wasOpen;
+
+    protected override void OnParametersSet()
+    {
+        if (Open && !_wasOpen)
+        {
+            _rows = null;
+            _text = _fileName = null;
+            _preview = [];
+        }
+        _wasOpen = Open;
+    }
+
+    private static string FieldLabel(string f) => f switch
+    {
+        "prompt" => "Prompt",
+        "title" => "Tytuł (puste = początek promptu)",
+        "data" => "Dane",
+        "expected" => "Oczekiwana odpowiedź",
+        "system" => "System prompt",
+        _ => "Tagi z kolumny"
+    };
+
+    private string? Get(string f) => f switch
+    {
+        "prompt" => _map.Prompt,
+        "title" => _map.Title,
+        "data" => _map.Data,
+        "expected" => _map.ExpectedAnswer,
+        "system" => _map.SystemPrompt,
+        _ => _map.Tags
+    };
+
+    private void Set(string f, string? v)
+    {
+        _map = f switch
+        {
+            "prompt" => _map with { Prompt = v ?? "" },
+            "title" => _map with { Title = v },
+            "data" => _map with { Data = v },
+            "expected" => _map with { ExpectedAnswer = v },
+            "system" => _map with { SystemPrompt = v },
+            _ => _map with { Tags = v }
+        };
+        Recompute();
+    }
+
+    private void InsertColumn(string col)
+    {
+        var cur = Get(_active);
+        Set(_active, string.IsNullOrEmpty(cur) ? $"{{{{{col}}}}}" : $"{cur} {{{{{col}}}}}");
+    }
+
+    private string Sample(string col)
+    {
+        var v = _rows?.Select(r => ImportService.Render($"{{{{{col}}}}}", r)).FirstOrDefault(s => s.Length > 0) ?? "";
+        return v.Length > 200 ? v[..200] + "…" : v;
+    }
+
+    private List<string> ExtraTags() =>
+        (_extraTags ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    private void Recompute()
+    {
+        if (_rows is null) return;
+        var (items, _) = ImportService.Map(_rows, _map, ExtraTags(), Me.User?.Id);
+        _mappedCount = items.Count;
+        _skipped = _rows.Count - items.Count;
+        _preview = items.Take(3).ToList();
+    }
+
+    private void SetRows(List<JsonObject> rows, ImportMapping? mapping, string? tag)
+    {
+        if (rows.Count == 0)
+        {
+            Toasts.Error("Nie znalazłam żadnych wierszy");
+            return;
+        }
+        _rows = rows;
+        _columns = ImportService.Columns(rows);
+        _map = mapping ?? ImportService.GuessMapping(_columns);
+        _extraTags ??= tag;
+        if (tag is not null) _extraTags = tag;
+        _active = "prompt";
+        Recompute();
+    }
+
+    private async Task OnFile(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            await using var stream = e.File.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            _text = await reader.ReadToEndAsync();
+            _fileName = e.File.Name;
+            LoadText();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error($"Nie udało się wczytać pliku: {ex.Message}");
+        }
+    }
+
+    private void ClearFile()
+    {
+        _fileName = _text = null;
+        _rows = null;
+    }
+
+    private void LoadText()
+    {
+        try
+        {
+            var tag = _fileName is null ? "import" : Path.GetFileNameWithoutExtension(_fileName).ToLowerInvariant();
+            SetRows(ImportService.ParseRows(_text ?? ""), null, tag);
+        }
+        catch (EvalException ex)
+        {
+            Toasts.Error(ex.Message);
+        }
+    }
+
+    private ImportMapping? _presetMapping;
+
+    private async Task ApplyPreset(HfPreset p)
+    {
+        _dataset = p.Dataset;
+        _presetMapping = p.Mapping;
+        _extraTags = p.Label.ToLowerInvariant();
+        _splits = [new HfSplit(p.Config, p.Split)];
+        _splitKey = $"{p.Config}|{p.Split}";
+        await LoadHf();
+    }
+
+    private async Task OnDatasetChanged()
+    {
+        _presetMapping = null;
+        _splits = [];
+        _splitKey = null;
+        if (string.IsNullOrWhiteSpace(_dataset)) return;
+        await Toasts.Try(async () =>
+        {
+            _splits = await Import.HfSplitsAsync(_dataset);
+            _splitKey = _splits.Select(s => $"{s.Config}|{s.Split}").FirstOrDefault(k => k.EndsWith("|test"))
+                        ?? _splits.Select(s => $"{s.Config}|{s.Split}").FirstOrDefault();
+        });
+    }
+
+    private async Task LoadHf()
+    {
+        if (string.IsNullOrWhiteSpace(_dataset)) return;
+        _busy = true;
+        var parts = (_splitKey ?? "").Split('|');
+        await Toasts.Try(async () =>
+        {
+            var rows = await Import.HfRowsAsync(_dataset, parts.ElementAtOrDefault(0), parts.ElementAtOrDefault(1), _offset, _length);
+            SetRows(rows, _presetMapping, _extraTags ?? _dataset.Split('/').Last().ToLowerInvariant());
+        });
+        _busy = false;
+    }
+
+    private async Task DoImport()
+    {
+        _busy = true;
+        ImportPreview? res = null;
+        var ok = await Toasts.Try(async () =>
+            res = await Import.ImportAsync(new ImportRequest(Rows: _rows, Mapping: _map, Tags: ExtraTags(), UserId: Me.User?.Id)));
+        _busy = false;
+        if (!ok) return;
+        Toasts.Ok($"Zaimportowano {res!.Created} przypadków – są zaznaczone, możesz od razu odpalić serię");
+        await OpenChanged.InvokeAsync(false);
+        await OnImported.InvokeAsync((res.CreatedIds ?? [], ExtraTags().FirstOrDefault()?.ToLowerInvariant()));
+    }
+}

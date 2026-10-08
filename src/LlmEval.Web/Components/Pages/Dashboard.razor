@@ -1,0 +1,133 @@
+@page "/"
+@implements IDisposable
+@inject EvalService Svc
+@inject EvalEvents Events
+@inject CurrentUser Me
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard · LLM Eval</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Siema, <span class="gradient-text">@(Me.User?.Name.Split(' ')[0] ?? "nieznajomy")</span> 👋</h1>
+        <div class="subtitle">Który model dziś zmiażdży konkurencję, a który da ciała?</div>
+    </div>
+    <div class="actions">
+        <a class="btn" href="iterations?unrated=1"><Icon Name="star" /> Do oceny</a>
+        <a class="btn" href="test-cases"><Icon Name="play" /> Odpal iterację</a>
+        <a class="btn btn-primary" href="batches?new=1"><Icon Name="list-checks" /> Nowa seria</a>
+    </div>
+</div>
+
+@if (_data is null)
+{
+    <div class="stats">@for (var i = 0; i < 5; i++) { <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:60%"></div></div> }</div>
+}
+else
+{
+    <div class="stats fade-in">
+        <Stat Label="Przypadki testowe" Value="@_data.TestCases" IconName="flask" />
+        <Stat Label="Iteracje" Value="@_data.Iterations" IconName="layers" />
+        <Stat Label="Odpowiedzi modeli" Value="@_data.Results" IconName="sparkles" />
+        <Stat Label="Oceny" Value="@_data.Ratings" IconName="star" />
+        <Stat Label="Użytkownicy" Value="@_data.Users" IconName="users" />
+    </div>
+
+    <div class="grid grid-2 fade-in" style="grid-template-columns: 1.25fr 1fr">
+        <div class="card">
+            <div class="card-title"><Icon Name="trophy" /> Ranking modeli</div>
+            @if (_data.Leaderboard.Count == 0)
+            {
+                <div class="empty"><Icon Name="trophy" Size="40" /><div>Brak danych. Odpal iterację i oceń odpowiedzi.</div></div>
+            }
+            else
+            {
+                <table class="table">
+                    <thead><tr><th style="width:40px"></th><th>Model</th><th>Średnia</th><th class="num">Wygrane</th><th class="num">Oceny</th><th class="num">Czas</th></tr></thead>
+                    <tbody>
+                    @{ var rank = 0; }
+                    @foreach (var e in _data.Leaderboard)
+                    {
+                        rank++;
+                        <tr>
+                            <td><span class="rank @(e.AvgStars is not null && rank <= 3 ? $"rank-{rank}" : "")">@rank</span></td>
+                            <td>
+                                <div class="row">
+                                    <ProviderIcon Type="e.Model.ProviderType" Size="28" />
+                                    <div class="grow">
+                                        <div style="font-weight:600">@e.Model.DisplayName</div>
+                                        <div class="small faint">@e.Model.ProviderName · @e.Runs uruchomień@(e.Failures > 0 ? $" · {e.Failures} błędów" : "")</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="min-width:150px">
+                                <div class="row"><span class="score">@Fmt.Stars(e.AvgStars)</span><StarRating Value="e.AvgStars ?? 0" ReadOnly Size="13" /></div>
+                                <div class="bar" style="margin-top:6px"><i style="width:@((e.AvgStars ?? 0) / 5 * 100)%"></i></div>
+                                @if (e.AvgStarsAi is not null)
+                                {
+                                    <div class="small faint" style="margin-top:4px">ludzie @Fmt.Stars(e.AvgStarsHuman) · AI @Fmt.Stars(e.AvgStarsAi)</div>
+                                }
+                            </td>
+                            <td class="num">@e.Wins</td>
+                            <td class="num">@e.RatingCount</td>
+                            <td class="num faint">@Fmt.Ms(e.AvgLatencyMs)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-title"><Icon Name="clock" /> Ostatnie iteracje</div>
+            @if (_data.Recent.Count == 0)
+            {
+                <div class="empty"><Icon Name="layers" Size="40" /><div>Jeszcze nic nie odpalono.</div></div>
+            }
+            else
+            {
+                <div class="stack" style="gap:4px">
+                    @foreach (var it in _data.Recent)
+                    {
+                        <IterationRow Item="it" />
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardDto? _data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Events.Changed += OnChanged;
+        Me.Changed += OnUserChanged;
+        _data = await Svc.GetDashboardAsync();
+    }
+
+    private bool _reloadPending;
+
+    // Results stream in fast during a run – coalesce bursts into one reload.
+    private void OnChanged()
+    {
+        if (_reloadPending) return;
+        _reloadPending = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(600);
+            _reloadPending = false;
+            _data = await Svc.GetDashboardAsync();
+            StateHasChanged();
+        });
+    }
+
+    private void OnUserChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Events.Changed -= OnChanged;
+        Me.Changed -= OnUserChanged;
+    }
+}

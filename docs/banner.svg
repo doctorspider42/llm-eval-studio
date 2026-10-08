@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="LLM Eval Studio – blind evaluation of LLM answers">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07070c"/>
+      <stop offset="1" stop-color="#0d0d16"/>
+    </linearGradient>
+    <linearGradient id="logo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset=".55" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#f472b6"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ececf3"/>
+      <stop offset=".55" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="60"/></filter>
+    <clipPath id="round"><rect width="1280" height="320" rx="24"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#round)">
+    <rect width="1280" height="320" fill="url(#bg)"/>
+    <g filter="url(#blur)" opacity=".85">
+      <circle cx="140" cy="40" r="170" fill="#8b5cf6" opacity=".45"/>
+      <circle cx="1150" cy="90" r="160" fill="#22d3ee" opacity=".3"/>
+      <circle cx="760" cy="360" r="170" fill="#f472b6" opacity=".22"/>
+    </g>
+    <rect width="1280" height="320" fill="none" stroke="#ffffff" stroke-opacity=".08" rx="24"/>
+
+    <!-- logo -->
+    <rect x="96" y="104" width="112" height="112" rx="30" fill="url(#logo)"/>
+    <rect x="96" y="104" width="112" height="112" rx="30" fill="none" stroke="#fff" stroke-opacity=".3"/>
+    <path d="M152 126 l9 26 26 9 -26 9 -9 26 -9 -26 -26 -9 26 -9z" fill="#fff"/>
+
+    <text x="248" y="160" font-family="Segoe UI, Inter, system-ui, -apple-system, sans-serif" font-size="64" font-weight="700" letter-spacing="-2" fill="url(#title)">LLM Eval Studio</text>
+    <text x="250" y="204" font-family="Segoe UI, Inter, system-ui, -apple-system, sans-serif" font-size="24" fill="#a3a3b8">Blind A/B/n testing of LLM answers — rated by humans and AI judges.</text>
+
+    <!-- blind candidate chips -->
+    <g font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="17" font-weight="600">
+      <g transform="translate(250 232)">
+        <rect width="108" height="34" rx="10" fill="#34d399" fill-opacity=".14" stroke="#34d399" stroke-opacity=".4"/>
+        <rect x="5" y="5" width="24" height="24" rx="7" fill="#6d28d9"/><text x="17" y="23" text-anchor="middle" fill="#fff" font-size="14">A</text>
+        <text x="40" y="23" fill="#a7f3d0">4.8 ★</text>
+      </g>
+      <g transform="translate(370 232)">
+        <rect width="108" height="34" rx="10" fill="#fbbf24" fill-opacity=".12" stroke="#fbbf24" stroke-opacity=".35"/>
+        <rect x="5" y="5" width="24" height="24" rx="7" fill="#0e7490"/><text x="17" y="23" text-anchor="middle" fill="#fff" font-size="14">B</text>
+        <text x="40" y="23" fill="#fde68a">3.4 ★</text>
+      </g>
+      <g transform="translate(490 232)">
+        <rect width="108" height="34" rx="10" fill="#f87171" fill-opacity=".12" stroke="#f87171" stroke-opacity=".4"/>
+        <rect x="5" y="5" width="24" height="24" rx="7" fill="#be185d"/><text x="17" y="23" text-anchor="middle" fill="#fff" font-size="14">C</text>
+        <text x="40" y="23" fill="#fecaca">1.9 ★</text>
+      </g>
+      <text x="618" y="255" fill="#6b6b80" font-weight="400">← who is who? you decide when to reveal 👀</text>
+    </g>
+  </g>
+</svg>

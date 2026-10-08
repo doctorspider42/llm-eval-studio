@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LlmEval.AppHost/LlmEval.AppHost.csproj" />
+    <Project Path="src/LlmEval.ServiceDefaults/LlmEval.ServiceDefaults.csproj" />
+    <Project Path="src/LlmEval.Web/LlmEval.Web.csproj" />
+  </Folder>
+</Solution>

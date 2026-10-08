@@ -1,0 +1,73 @@
+@inject EvalService Svc
+@inject Toaster Toasts
+@inject CurrentUser Me
+@inject IJSRuntime JS
+
+<Modal Open="Open" OpenChanged="OpenChanged" Title="Odpal iterację" Icon="play" Wide>
+    <ChildContent>
+        <div class="muted" style="margin-top:-8px;margin-bottom:16px">
+            Wybierz modele. Kolejność w wynikach zostanie <b>wylosowana</b>, a nazwy ukryte – zobaczysz „Model 1, Model 2…”.
+        </div>
+        @if (_models is null)
+        {
+            <div class="skeleton"></div><div class="skeleton"></div>
+        }
+        else
+        {
+            <ModelPicker Models="_models" Selected="_selected" SelectionChanged="StateHasChanged" />
+            <div class="field" style="margin-top:18px">
+                <label>Notatka (opcjonalnie)</label>
+                <input class="input" @bind="_note" placeholder="np. po zmianie promptu na bardziej konkretny" />
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="() => OpenChanged.InvokeAsync(false)">Anuluj</button>
+        <button class="btn btn-primary" disabled="@(_selected.Count == 0 || _running)" @onclick="Run">
+            <Icon Name="@(_running ? "loader" : "zap")" Class="@(_running ? "spin" : null)" /> Odpal na @_selected.Count @(_selected.Count == 1 ? "modelu" : "modelach")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private const string LastModelsKey = "llmeval.lastModels";
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter, EditorRequired] public Guid TestCaseId { get; set; }
+    [Parameter] public EventCallback<IterationDto> OnStarted { get; set; }
+
+    private List<ModelDto>? _models;
+    private readonly HashSet<Guid> _selected = [];
+    private string? _note;
+    private bool _running, _wasOpen;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !_wasOpen)
+        {
+            _wasOpen = true;
+            _note = null;
+            _models = await Svc.GetModelsAsync();
+            _selected.Clear();
+            var last = await JS.InvokeAsync<string?>("localStorage.getItem", LastModelsKey);
+            foreach (var s in (last ?? "").Split(','))
+                if (Guid.TryParse(s, out var id) && _models.Any(m => m.Id == id && m.Enabled && m.ProviderEnabled))
+                    _selected.Add(id);
+        }
+        _wasOpen = Open;
+    }
+
+    private async Task Run()
+    {
+        _running = true;
+        IterationDto? it = null;
+        var ok = await Toasts.Try(async () =>
+            it = await Svc.RunIterationAsync(TestCaseId, new RunIterationRequest(_selected.ToList(), Me.User?.Id, _note)));
+        _running = false;
+        if (!ok) return;
+        await JS.InvokeVoidAsync("localStorage.setItem", LastModelsKey, string.Join(',', _selected));
+        await OpenChanged.InvokeAsync(false);
+        await OnStarted.InvokeAsync(it!);
+    }
+}
