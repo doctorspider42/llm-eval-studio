@@ -9,7 +9,7 @@ namespace LlmEval.Web.Llm;
 
 public record LlmRequest(Provider Provider, LlmModel Model, string? SystemPrompt, string UserMessage);
 
-public record LlmResponse(string Output, int? InputTokens = null, int? OutputTokens = null);
+public record LlmResponse(string Output, int? InputTokens = null, int? OutputTokens = null, decimal? CostUsd = null);
 
 public interface ILlmClient
 {
@@ -45,26 +45,35 @@ internal static class HttpHelpers
     public static string Combine(string baseUrl, string path) => baseUrl.TrimEnd('/') + "/" + path.TrimStart('/');
 }
 
-public class OpenAiClient(IHttpClientFactory httpFactory) : ILlmClient
+public abstract class OpenAiCompatibleClient(IHttpClientFactory httpFactory) : ILlmClient
 {
-    public ProviderType Type => ProviderType.OpenAI;
+    public abstract ProviderType Type { get; }
+    protected abstract string DefaultBaseUrl { get; }
+    protected abstract string ApiKeyEnvironmentVariable { get; }
+    protected virtual string SystemRole => "developer";
+    protected virtual string MaxTokensParameter => "max_completion_tokens";
 
-    private static string BaseUrl(Provider p) => string.IsNullOrWhiteSpace(p.BaseUrl) ? "https://api.openai.com/v1" : p.BaseUrl;
+    private string BaseUrl(Provider p) => string.IsNullOrWhiteSpace(p.BaseUrl) ? DefaultBaseUrl : p.BaseUrl;
 
-    private static string ApiKey(Provider p) =>
-        p.ApiKey ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-        ?? throw new LlmException("Missing API key (set it on the provider or via OPENAI_API_KEY)");
+    private string ApiKey(Provider p)
+    {
+        var key = string.IsNullOrWhiteSpace(p.ApiKey)
+            ? Environment.GetEnvironmentVariable(ApiKeyEnvironmentVariable) : p.ApiKey;
+        return !string.IsNullOrWhiteSpace(key) ? key
+            : throw new LlmException($"Missing API key (set it on the provider or via {ApiKeyEnvironmentVariable})");
+    }
 
     public async Task<LlmResponse> CompleteAsync(LlmRequest r, CancellationToken ct)
     {
         var messages = new JsonArray();
         if (!string.IsNullOrWhiteSpace(r.SystemPrompt))
-            messages.Add(new JsonObject { ["role"] = "developer", ["content"] = r.SystemPrompt });
+            messages.Add(new JsonObject { ["role"] = SystemRole, ["content"] = r.SystemPrompt });
         messages.Add(new JsonObject { ["role"] = "user", ["content"] = r.UserMessage });
 
         var body = new JsonObject { ["model"] = r.Model.ModelId, ["messages"] = messages };
+        if (Type == ProviderType.OpenRouter) body["usage"] = new JsonObject { ["include"] = true };
         if (r.Model.Temperature is { } t) body["temperature"] = t;
-        if (r.Model.MaxTokens is { } m) body["max_completion_tokens"] = m;
+        if (r.Model.MaxTokens is { } m) body[MaxTokensParameter] = m;
 
         using var req = new HttpRequestMessage(HttpMethod.Post, HttpHelpers.Combine(BaseUrl(r.Provider), "chat/completions"))
         {
@@ -73,10 +82,14 @@ public class OpenAiClient(IHttpClientFactory httpFactory) : ILlmClient
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey(r.Provider));
 
         var json = await HttpHelpers.SendJsonAsync(httpFactory.CreateClient("llm"), req, ct);
+        // Compatible APIs can return an error payload even with HTTP 200.
+        if (json["error"] is { } error)
+            throw new LlmException($"{Type}: {HttpHelpers.Truncate(error.ToJsonString(), 1500)}");
         var text = json["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? "";
         return new LlmResponse(text,
             json["usage"]?["prompt_tokens"]?.GetValue<int>(),
-            json["usage"]?["completion_tokens"]?.GetValue<int>());
+            json["usage"]?["completion_tokens"]?.GetValue<int>(),
+            Type == ProviderType.OpenRouter ? json["usage"]?["cost"]?.GetValue<decimal>() : null);
     }
 
     public async Task<IReadOnlyList<string>> ListModelsAsync(Provider p, CancellationToken ct)
@@ -86,6 +99,22 @@ public class OpenAiClient(IHttpClientFactory httpFactory) : ILlmClient
         var json = await HttpHelpers.SendJsonAsync(httpFactory.CreateClient("llm"), req, ct);
         return json["data"]!.AsArray().Select(m => m!["id"]!.GetValue<string>()).Order().ToList();
     }
+}
+
+public class OpenAiClient(IHttpClientFactory httpFactory) : OpenAiCompatibleClient(httpFactory)
+{
+    public override ProviderType Type => ProviderType.OpenAI;
+    protected override string DefaultBaseUrl => "https://api.openai.com/v1";
+    protected override string ApiKeyEnvironmentVariable => "OPENAI_API_KEY";
+}
+
+public class OpenRouterClient(IHttpClientFactory httpFactory) : OpenAiCompatibleClient(httpFactory)
+{
+    public override ProviderType Type => ProviderType.OpenRouter;
+    protected override string DefaultBaseUrl => "https://openrouter.ai/api/v1";
+    protected override string ApiKeyEnvironmentVariable => "OPENROUTER_API_KEY";
+    protected override string SystemRole => "system";
+    protected override string MaxTokensParameter => "max_tokens";
 }
 
 public class AnthropicClient(IHttpClientFactory httpFactory) : ILlmClient
@@ -111,6 +140,7 @@ public class AnthropicClient(IHttpClientFactory httpFactory) : ILlmClient
             ["messages"] = new JsonArray(new JsonObject { ["role"] = "user", ["content"] = r.UserMessage })
         };
         if (!string.IsNullOrWhiteSpace(r.SystemPrompt)) body["system"] = r.SystemPrompt;
+        if (Type == ProviderType.OpenRouter) body["usage"] = new JsonObject { ["include"] = true };
         if (r.Model.Temperature is { } t) body["temperature"] = t;
 
         using var req = new HttpRequestMessage(HttpMethod.Post, HttpHelpers.Combine(BaseUrl(r.Provider), "messages"))
@@ -219,10 +249,10 @@ public abstract class CliClientBase : ILlmClient
         {
             var stdoutTask = proc.StandardOutput.ReadToEndAsync(timeout.Token);
             var stderrTask = proc.StandardError.ReadToEndAsync(timeout.Token);
-            await proc.StandardInput.WriteAsync(stdin);
-            proc.StandardInput.Close();
             try
             {
+                await proc.StandardInput.WriteAsync(stdin.AsMemory(), timeout.Token);
+                proc.StandardInput.Close();
                 await proc.WaitForExitAsync(timeout.Token);
             }
             catch (OperationCanceledException)
@@ -298,7 +328,8 @@ public class ClaudeCliClient : CliClientBase
                 : (usage["input_tokens"]?.GetValue<int>() ?? 0)
                   + (usage["cache_read_input_tokens"]?.GetValue<int>() ?? 0)
                   + (usage["cache_creation_input_tokens"]?.GetValue<int>() ?? 0);
-            return new LlmResponse(json["result"]?.GetValue<string>() ?? "", input, usage?["output_tokens"]?.GetValue<int>());
+            return new LlmResponse(json["result"]?.GetValue<string>() ?? "", input, usage?["output_tokens"]?.GetValue<int>(),
+                json["total_cost_usd"]?.GetValue<decimal>());
         }
         catch (JsonException)
         {

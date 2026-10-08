@@ -43,7 +43,7 @@ public static class ApiEndpoints
                 var p = await s.CreateProviderAsync(req, ct);
                 return Results.Created($"/api/providers/{p.Id}", p);
             })
-            .WithSummary("Create provider. type: OpenAI | Anthropic | Ollama | ClaudeCli | CodexCli");
+            .WithSummary("Create provider. type: OpenAI | OpenRouter | Anthropic | Ollama | ClaudeCli | CodexCli");
         providers.MapPut("/{id:guid}", (Guid id, UpsertProviderRequest req, EvalService s, CancellationToken ct) => s.UpdateProviderAsync(id, req, ct))
             .WithSummary("Update provider. apiKey: null = keep, \"\" = remove");
         providers.MapDelete("/{id:guid}", async (Guid id, EvalService s, CancellationToken ct) =>

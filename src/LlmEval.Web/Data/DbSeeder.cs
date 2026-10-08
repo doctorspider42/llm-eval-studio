@@ -77,6 +77,12 @@ public static class DbSeeder
         };
         yield return new Provider
         {
+            Name = "OpenRouter API",
+            Type = ProviderType.OpenRouter,
+            Enabled = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENROUTER_API_KEY"))
+        };
+        yield return new Provider
+        {
             Name = "Codex CLI",
             Type = ProviderType.CodexCli,
             Enabled = false,

@@ -118,7 +118,7 @@ else
                     @foreach (var t in Enum.GetValues<ProviderType>()) { <option value="@t">@TypeLabel(t)</option> }
                 </select>
             </div>
-            @if (_pType is ProviderType.OpenAI or ProviderType.Anthropic or ProviderType.Ollama)
+            @if (_pType is ProviderType.OpenAI or ProviderType.OpenRouter or ProviderType.Anthropic or ProviderType.Ollama)
             {
                 <div class="field">
                     <label>@L["providers.baseUrl"]</label>
@@ -126,7 +126,7 @@ else
                     <div class="hint">@L["providers.baseUrlHint"]</div>
                 </div>
             }
-            @if (_pType is ProviderType.OpenAI or ProviderType.Anthropic)
+            @if (_pType is ProviderType.OpenAI or ProviderType.OpenRouter or ProviderType.Anthropic)
             {
                 <div class="field">
                     <label>@L["providers.apiKey"]</label>
@@ -135,7 +135,7 @@ else
                     {
                         <label class="switch small"><input type="checkbox" @bind="_pClearKey" /><span class="track"></span> @L["providers.clearKey"]</label>
                     }
-                    <div class="hint">@L["providers.fallback"] <code class="kbd">@(_pType == ProviderType.OpenAI ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY")</code></div>
+                    <div class="hint">@L["providers.fallback"] <code class="kbd">@ApiKeyEnv(_pType)</code></div>
                 </div>
             }
             @if (_pType is ProviderType.ClaudeCli or ProviderType.CodexCli)
@@ -205,6 +205,7 @@ else
     private static string TypeLabel(ProviderType t) => t switch
     {
         ProviderType.OpenAI => "OpenAI API",
+        ProviderType.OpenRouter => "OpenRouter API",
         ProviderType.Anthropic => "Anthropic API",
         ProviderType.Ollama => "Ollama",
         ProviderType.ClaudeCli => "Claude Code CLI",
@@ -214,8 +215,16 @@ else
     private static string DefaultUrl(ProviderType t) => t switch
     {
         ProviderType.OpenAI => "https://api.openai.com/v1",
+        ProviderType.OpenRouter => "https://openrouter.ai/api/v1",
         ProviderType.Anthropic => "https://api.anthropic.com/v1",
         _ => "http://localhost:11434"
+    };
+
+    private static string ApiKeyEnv(ProviderType t) => t switch
+    {
+        ProviderType.OpenRouter => "OPENROUTER_API_KEY",
+        ProviderType.OpenAI => "OPENAI_API_KEY",
+        _ => "ANTHROPIC_API_KEY"
     };
 
     private string Describe(ProviderDto p) => p.Type switch

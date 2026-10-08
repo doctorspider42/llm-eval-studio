@@ -27,7 +27,7 @@
 | ⚖️ **AI judge** | Mark any model as a judge. It rates every answer blind (1–5 ★ plus a reason) under its own bot account, next to human ratings. |
 | 🎯 **Expected answers** | Add a reference answer to a test case. The models never see it; the judge compares the answers against it. |
 | 🔁 **Series** | *N test cases × M models × K repetitions* in one click, with live progress, a per-model ranking, a spread score (σ) and a heat-map matrix. |
-| 🧩 **5 providers** | OpenAI API · Anthropic API · Ollama · **Claude Code CLI** · **Codex CLI** (use your subscription, no API key needed). |
+| 🧩 **6 providers** | OpenAI API · OpenRouter API · Anthropic API · Ollama · **Claude Code CLI** · **Codex CLI** (use your subscription, no API key needed). |
 | 📥 **Import** | JSON / JSONL, or rows straight from Hugging Face with `{{column}}` templates. Presets for IFEval, GSM8K and TruthfulQA. |
 | 🤖 **Agent-ready API** | Everything in the UI is also available over REST, with OpenAPI + Scalar docs and a ready-made [Claude skill](.claude/skills/llm-eval/SKILL.md). |
 | 📄 **PDF reports** | One click turns a series into a print-ready report (verdict, ranking, chart, per-case heat map, judge comments). Save it as PDF straight from the browser. |
@@ -57,13 +57,15 @@ dotnet run --project src/LlmEval.AppHost
 
 Then open **http://localhost:5106**. The Aspire dashboard link is printed in the console.
 
-The database is migrated and seeded on first start with one user (`admin`), 5 providers and 16 sample test cases (the sample content is in Polish; the UI follows your browser language and can be switched to PL / EN).
+The database is migrated and seeded on first start with one user (`admin`), 6 providers and 16 sample test cases (the sample content is in Polish; the UI follows your browser language and can be switched to PL / EN).
 
 **Models to test.** Any of these is enough:
 - 🟣 `claude` CLI logged in (Claude Code) — seeded as Haiku / Sonnet / Opus
 - 🦙 [Ollama](https://ollama.com) running locally
-- 🔑 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` in the environment, or a key pasted on the *Providers* page
+- 🔑 `OPENAI_API_KEY` / `OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY` in the environment, or a key pasted on the *Providers* page
 - ⌨️ `codex` CLI on `PATH`
+
+**OpenRouter.** On *Providers*, add a provider with type **OpenRouter API** and paste your API key (or set `OPENROUTER_API_KEY`). Leave the base URL empty to use `https://openrouter.ai/api/v1`. Click **Test** to discover models, then click a model ID to add it. OpenRouter uses full model IDs such as `openai/gpt-5`; added models work in evaluations and as AI judges. Existing databases can add this provider from the UI without a migration. See the [OpenRouter API documentation](https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion).
 
 ## 🧠 How it works
 
@@ -128,7 +130,7 @@ src/LlmEval.ServiceDefaults  OpenTelemetry, health checks
 src/LlmEval.Web
   Api/         minimal API (/api/…)
   Data/        EF Core entities, migrations, seed
-  Llm/         clients: OpenAI, Anthropic, Ollama, Claude CLI, Codex CLI
+  Llm/         clients: OpenAI, OpenRouter, Anthropic, Ollama, Claude CLI, Codex CLI
   Services/    EvalService (shared by UI and API), runners, AI judge, import
   Components/  Blazor UI
 ```

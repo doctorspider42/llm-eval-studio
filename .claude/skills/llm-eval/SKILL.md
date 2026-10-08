@@ -19,7 +19,7 @@ Full OpenAPI spec: `$BASE/openapi/v1.json` (human docs at `$BASE/scalar`). Enums
 
 ## Domain in one paragraph
 
-**Users** have no passwords; every write that needs authorship takes a `userId`. **Providers** (`OpenAI | Anthropic | Ollama | ClaudeCli | CodexCli`) own **models**. A **test case** = `prompt` + optional `data` (+ optional `systemPrompt`, `tags`). Running it on N models creates an **iteration** with N **results**, shuffled and labelled `Model 1..N` — the real model is hidden unless you pass `?reveal=true`. Each user can give each completed result one **rating** (1–5 `stars` + optional `comment`); re-rating overwrites.
+**Users** have no passwords; every write that needs authorship takes a `userId`. **Providers** (`OpenAI | OpenRouter | Anthropic | Ollama | ClaudeCli | CodexCli`) own **models**. A **test case** = `prompt` + optional `data` (+ optional `systemPrompt`, `tags`). Running it on N models creates an **iteration** with N **results**, shuffled and labelled `Model 1..N` — the real model is hidden unless you pass `?reveal=true`. Each user can give each completed result one **rating** (1–5 `stars` + optional `comment`); re-rating overwrites.
 
 ## Endpoints
 

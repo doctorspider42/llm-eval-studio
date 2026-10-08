@@ -20,7 +20,8 @@ public enum ProviderType
     Anthropic,
     Ollama,
     ClaudeCli,
-    CodexCli
+    CodexCli,
+    OpenRouter
 }
 
 public class Provider
@@ -28,9 +29,9 @@ public class Provider
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public required string Name { get; set; }
     public ProviderType Type { get; set; }
-    /// <summary>API base URL (OpenAI / Anthropic / Ollama). Null = provider default.</summary>
+    /// <summary>API base URL (OpenAI / OpenRouter / Anthropic / Ollama). Null = provider default.</summary>
     public string? BaseUrl { get; set; }
-    /// <summary>API key. Null = fall back to env var (OPENAI_API_KEY / ANTHROPIC_API_KEY).</summary>
+    /// <summary>API key. Null = fall back to env var (OPENAI_API_KEY / OPENROUTER_API_KEY / ANTHROPIC_API_KEY).</summary>
     public string? ApiKey { get; set; }
     /// <summary>Executable path for CLI providers. Null = "claude" / "codex" from PATH.</summary>
     public string? CliPath { get; set; }

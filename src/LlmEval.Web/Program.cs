@@ -23,6 +23,7 @@ builder.Services.AddHttpClient("hf", c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<ImportService>();
 builder.Services.AddSingleton<ReportService>();
 builder.Services.AddSingleton<ILlmClient, OpenAiClient>();
+builder.Services.AddSingleton<ILlmClient, OpenRouterClient>();
 builder.Services.AddSingleton<ILlmClient, AnthropicClient>();
 builder.Services.AddSingleton<ILlmClient, OllamaClient>();
 builder.Services.AddSingleton<ILlmClient, ClaudeCliClient>();
